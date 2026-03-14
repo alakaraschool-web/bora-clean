@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-kenya-black: #000000;
+  --color-kenya-red: #922529;
+  --color-kenya-green: #008C51;
+  --color-kenya-white: #FFFFFF;
+
+  --background-kenya-pattern: radial-gradient(#922529 0.5px, transparent 0.5px), radial-gradient(#008C51 0.5px, #ffffff 0.5px);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-white text-kenya-black;
+  }
+}
+
+@utility bg-kenya-gradient {
+  background: linear-gradient(135deg, #000000 0%, #922529 50%, #008C51 100%);
+}
+
+@utility text-kenya-gradient {
+  @apply bg-clip-text text-transparent bg-kenya-gradient;
+}
