@@ -107,6 +107,109 @@ export const TeacherDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSuspended, setIsSuspended] = useState(false);
 
+  const [classes, setClasses] = useState<any[]>(() => {
+    const saved = localStorage.getItem('alakara_classes');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: '1', name: 'Form 1', teacherId: '1', capacity: 40 },
+      { id: '2', name: 'Form 2', teacherId: '2', capacity: 40 },
+      { id: '3', name: 'Form 3', teacherId: '3', capacity: 40 },
+      { id: '4', name: 'Form 4', teacherId: '', capacity: 40 },
+      { id: '5', name: 'Grade 7', teacherId: '', capacity: 40 },
+      { id: '6', name: 'Grade 8', teacherId: '', capacity: 40 },
+    ];
+  });
+
+  const [streams, setStreams] = useState<any[]>(() => {
+    const saved = localStorage.getItem('alakara_streams');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: 's1', name: 'North', classId: '1' },
+      { id: 's2', name: 'South', classId: '1' },
+      { id: 's3', name: 'East', classId: '2' },
+      { id: 's4', name: 'West', classId: '2' },
+    ];
+  });
+
+  const [examMaterials, setExamMaterials] = useState<any[]>(() => {
+    const saved = localStorage.getItem('alakara_exam_materials');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
+  const [newMaterial, setNewMaterial] = useState({
+    title: '',
+    subject: 'Mathematics',
+    fileType: 'PDF' as 'PDF' | 'DOCX' | 'ZIP',
+    file: null as File | null
+  });
+
+  const [selectedAnalysisExamId, setSelectedAnalysisExamId] = useState('');
+  const [selectedAnalysisClass, setSelectedAnalysisClass] = useState('All');
+  const [analysisOptions, setAnalysisOptions] = useState({
+    showGrades: true,
+    showRank: true
+  });
+
+  const [assessmentCategories] = useState<any[]>(() => {
+    const saved = localStorage.getItem('alakara_assessment_categories');
+    return saved ? JSON.parse(saved) : [
+      { id: 'final', name: 'Score', maxScore: 100 },
+    ];
+  });
+
+  const [learningAreas] = useState<string[]>(() => {
+    const saved = localStorage.getItem('alakara_learning_areas');
+    return saved ? JSON.parse(saved) : ['Mathematics', 'English', 'Kiswahili', 'Science', 'Social Studies', 'CRE'];
+  });
+
+  const [gradingSystem] = useState<any[]>(() => {
+    const saved = localStorage.getItem('alakara_grading');
+    return saved ? JSON.parse(saved) : [
+      { grade: 'A', min: 80, max: 100, points: 12 },
+      { grade: 'A-', min: 75, max: 79, points: 11 },
+      { grade: 'B+', min: 70, max: 74, points: 10 },
+      { grade: 'B', min: 65, max: 69, points: 9 },
+      { grade: 'B-', min: 60, max: 64, points: 8 },
+      { grade: 'C+', min: 55, max: 59, points: 7 },
+      { grade: 'C', min: 50, max: 54, points: 6 },
+      { grade: 'C-', min: 45, max: 49, points: 5 },
+      { grade: 'D+', min: 40, max: 44, points: 4 },
+      { grade: 'D', min: 35, max: 39, points: 3 },
+      { grade: 'D-', min: 30, max: 34, points: 2 },
+      { grade: 'E', min: 0, max: 29, points: 1 },
+    ];
+  });
+
+  const [allStudents, setAllStudents] = useState<any[]>(() => {
+    const saved = localStorage.getItem('alakara_students');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: 'S1', name: 'Alice Wanjiku', adm: 'ADM-2024-001', class: 'Form 1', streamId: 's1' },
+      { id: 'S2', name: 'Bob Otieno', adm: 'ADM-2024-002', class: 'Form 2', streamId: 's3' },
+      { id: 'S3', name: 'Charlie Mutua', adm: 'ADM-2024-003', class: 'Form 1', streamId: 's2' },
+      { id: 'S4', name: 'Diana Anyango', adm: 'ADM-2024-004', class: 'Form 2', streamId: 's4' },
+      { id: 'S5', name: 'Evans Kiprop', adm: 'ADM-2024-005', class: 'Form 1', streamId: 's1' },
+    ];
+  });
+
+  const [newStudent, setNewStudent] = useState({ name: '', adm: '' });
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showImportPreview, setShowImportPreview] = useState(false);
+  const [importPreviewData, setImportPreviewData] = useState<any[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [publicResources, setPublicResources] = useState<any[]>([]);
+  const [isLoadingResources, setIsLoadingResources] = useState(false);
+  const [isFetchingStudents, setIsFetchingStudents] = useState(false);
+  const [selectedRankingSubject, setSelectedRankingSubject] = useState('');
+
+  useEffect(() => {
+    if (currentTeacher?.avatar_url) {
+      setProfilePhoto(currentTeacher.avatar_url);
+    }
+  }, [currentTeacher?.avatar_url]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -212,6 +315,118 @@ export const TeacherDashboard = () => {
     return () => clearInterval(interval);
   }, [currentTeacher?.school_id]);
 
+  useEffect(() => {
+    const fetchAllData = async () => {
+      if (!currentTeacher?.school_id) return;
+      
+      try {
+        const schoolId = currentTeacher.school_id;
+
+        // Fetch everything in parallel
+        const [
+          { data: studentsData },
+          { data: classesData },
+          { data: examsData },
+          { data: streamsData }
+        ] = await Promise.all([
+          supabase.from('students').select('*').eq('school_id', schoolId),
+          supabase.from('classes').select('*').eq('school_id', schoolId),
+          supabase.from('exams').select('*').eq('school_id', schoolId),
+          supabase.from('streams').select('*').eq('school_id', schoolId)
+        ]);
+
+        if (studentsData) {
+          setAllStudents(studentsData);
+          localStorage.setItem('alakara_students', JSON.stringify(studentsData));
+        }
+
+        if (classesData) {
+          setClasses(classesData);
+          localStorage.setItem('alakara_classes', JSON.stringify(classesData));
+        }
+
+        if (streamsData) {
+          setStreams(streamsData);
+          localStorage.setItem('alakara_streams', JSON.stringify(streamsData));
+        }
+
+        if (examsData) {
+          const formattedExams = examsData.map(e => ({
+            ...e,
+            schoolId: e.school_id,
+            createdAt: e.created_at,
+            classes: e.class_id ? [e.class_id] : [],
+            subjects: e.subject_id ? [e.subject_id] : [],
+            status: e.locked ? 'Completed' : 'Active',
+            published: e.locked
+          }));
+          setExams(formattedExams);
+          localStorage.setItem('alakara_exams', JSON.stringify(formattedExams));
+
+          // Fetch Marks for these exams
+          const examIds = examsData.map(e => e.id);
+          if (examIds.length > 0) {
+            const { data: marksData } = await supabase
+              .from('marks')
+              .select('*')
+              .in('exam_id', examIds);
+            
+            if (marksData) {
+              const formattedMarks = marksData.map(m => ({
+                id: m.id,
+                examId: m.exam_id,
+                studentId: m.student_id,
+                subject: m.subject_id,
+                score: String(m.score),
+                grade: m.grade || '',
+                updatedAt: m.created_at
+              }));
+              setMarks(formattedMarks);
+              localStorage.setItem('alakara_marks', JSON.stringify(formattedMarks));
+            }
+          }
+        }
+
+      } catch (error) {
+        console.error('Error fetching data from Supabase:', error);
+        // Fallback to localStorage is already handled by initial state and other hooks if needed
+      }
+    };
+
+    fetchAllData();
+    const interval = setInterval(fetchAllData, 30000); // Sync every 30s
+    return () => clearInterval(interval);
+  }, [currentTeacher?.school_id]);
+
+  useEffect(() => {
+    localStorage.setItem('alakara_exam_materials', JSON.stringify(examMaterials));
+  }, [examMaterials]);
+
+  useEffect(() => {
+    localStorage.setItem('alakara_marks', JSON.stringify(marks));
+  }, [marks]);
+
+  useEffect(() => {
+    localStorage.setItem('alakara_students', JSON.stringify(allStudents));
+  }, [allStudents]);
+
+  useEffect(() => {
+    const fetchResources = async () => {
+      setIsLoadingResources(true);
+      try {
+        const resources = await supabaseService.getPublicResources();
+        setPublicResources(resources || []);
+      } catch (error) {
+        console.error('Error fetching resources:', error);
+      } finally {
+        setIsLoadingResources(false);
+      }
+    };
+    if (activeTab === 'materials') {
+      fetchResources();
+    }
+  }, [activeTab]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -234,300 +449,7 @@ export const TeacherDashboard = () => {
     );
   }
 
-  useEffect(() => {
-    const fetchAllData = async () => {
-      if (!currentTeacher?.school_id) return;
-      
-      try {
-        // Fetch Students
-        const { data: studentsData } = await supabase
-          .from('students')
-          .select('*')
-          .eq('school_id', currentTeacher.school_id);
-        if (studentsData) setAllStudents(studentsData);
-
-        // Fetch Classes
-        const { data: classesData } = await supabase
-          .from('classes')
-          .select('*')
-          .eq('school_id', currentTeacher.school_id);
-        if (classesData) setClasses(classesData);
-
-        // Fetch Exams
-        const { data: examsData } = await supabase
-          .from('exams')
-          .select('*')
-          .eq('school_id', currentTeacher.school_id);
-        if (examsData) {
-          setExams(examsData.map(e => ({
-            ...e,
-            schoolId: e.school_id,
-            createdAt: e.created_at,
-            classes: e.class_id ? [e.class_id] : [],
-            subjects: e.subject_id ? [e.subject_id] : [],
-            status: e.locked ? 'Completed' : 'Active',
-            published: e.locked // Assuming locked means published for now
-          })));
-        }
-
-        // Fetch Marks for all exams in this school
-        const { data: examsForMarks } = await supabase
-          .from('exams')
-          .select('id')
-          .eq('school_id', currentTeacher.school_id);
-        
-        let marksData = null;
-        if (examsForMarks && examsForMarks.length > 0) {
-          const examIds = examsForMarks.map(e => e.id);
-          const { data } = await supabase
-            .from('marks')
-            .select('*')
-            .in('exam_id', examIds);
-          marksData = data;
-        }
-        if (marksData) {
-          setMarks(marksData.map(m => ({
-            id: m.id,
-            examId: m.exam_id,
-            studentId: m.student_id,
-            subject: m.subject_id,
-            score: String(m.score),
-            grade: m.grade || '',
-            updatedAt: m.created_at
-          })));
-        }
-
-      } catch (error) {
-        console.error('Error fetching data from Supabase:', error);
-      }
-    };
-
-    fetchAllData();
-  }, [currentTeacher?.school_id]);
-
-  const [classes, setClasses] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_classes');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: '1', name: 'Form 1', teacherId: '1', capacity: 40 },
-      { id: '2', name: 'Form 2', teacherId: '2', capacity: 40 },
-      { id: '3', name: 'Form 3', teacherId: '3', capacity: 40 },
-      { id: '4', name: 'Form 4', teacherId: '', capacity: 40 },
-      { id: '5', name: 'Grade 7', teacherId: '', capacity: 40 },
-      { id: '6', name: 'Grade 8', teacherId: '', capacity: 40 },
-    ];
-  });
-
-  const [streams, setStreams] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_streams');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 's1', name: 'North', classId: '1' },
-      { id: 's2', name: 'South', classId: '1' },
-      { id: 's3', name: 'East', classId: '2' },
-      { id: 's4', name: 'West', classId: '2' },
-    ];
-  });
-
-  const [examMaterials, setExamMaterials] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_exam_materials');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
-  const [newMaterial, setNewMaterial] = useState({
-    title: '',
-    subject: 'Mathematics',
-    fileType: 'PDF' as 'PDF' | 'DOCX' | 'ZIP',
-    file: null as File | null
-  });
-
-  useEffect(() => {
-    localStorage.setItem('alakara_exam_materials', JSON.stringify(examMaterials));
-  }, [examMaterials]);
-
-  const handleAddMaterial = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newMaterial.file) {
-      alert('Please select a file to upload.');
-      return;
-    }
-    const material = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: newMaterial.title,
-      subject: newMaterial.subject,
-      fileType: newMaterial.fileType,
-      fileName: newMaterial.file.name,
-      fileSize: (newMaterial.file.size / 1024).toFixed(1) + ' KB',
-      schoolName: 'Bora School Academy',
-      teacherName: currentTeacher.name,
-      uploadDate: new Date().toLocaleDateString(),
-      status: 'Pending',
-      visibility: 'Public'
-    };
-    setExamMaterials([material, ...examMaterials]);
-    setShowAddMaterialModal(false);
-    setNewMaterial({ title: '', subject: 'Mathematics', fileType: 'PDF', file: null });
-    alert('Material uploaded and sent for approval!');
-  };
-
-  const deleteMaterial = (id: string) => {
-    if (window.confirm('Delete this material?')) {
-      setExamMaterials(examMaterials.filter(m => m.id !== id));
-    }
-  };
-
-  const [teacherRole] = useState<string>(currentTeacher?.role || 'Teacher');
-  const [selectedAnalysisExamId, setSelectedAnalysisExamId] = useState('');
-  const [selectedAnalysisClass, setSelectedAnalysisClass] = useState('All');
-  const [analysisOptions, setAnalysisOptions] = useState({
-    showGrades: true,
-    showRank: true
-  });
-
-  const [assessmentCategories] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_assessment_categories');
-    return saved ? JSON.parse(saved) : [
-      { id: 'final', name: 'Score', maxScore: 100 },
-    ];
-  });
-
-  const assignments = currentTeacher?.assignments || [];
-  const assignedClasses = Array.from(new Set(assignments.map((a: any) => {
-    const cls = classes.find(c => c.id === a.classId);
-    return cls ? cls.name : '';
-  }).filter(Boolean))) as string[];
-  
-  const managedClass = classes.find(c => c.teacherId === currentTeacher?.id);
-
-  const [learningAreas] = useState<string[]>(() => {
-    const saved = localStorage.getItem('alakara_learning_areas');
-    return saved ? JSON.parse(saved) : ['Mathematics', 'English', 'Kiswahili', 'Science', 'Social Studies', 'CRE'];
-  });
-
-  const [gradingSystem] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_grading');
-    return saved ? JSON.parse(saved) : [
-      { grade: 'A', min: 80, max: 100, points: 12 },
-      { grade: 'A-', min: 75, max: 79, points: 11 },
-      { grade: 'B+', min: 70, max: 74, points: 10 },
-      { grade: 'B', min: 65, max: 69, points: 9 },
-      { grade: 'B-', min: 60, max: 64, points: 8 },
-      { grade: 'C+', min: 55, max: 59, points: 7 },
-      { grade: 'C', min: 50, max: 54, points: 6 },
-      { grade: 'C-', min: 45, max: 49, points: 5 },
-      { grade: 'D+', min: 40, max: 44, points: 4 },
-      { grade: 'D', min: 35, max: 39, points: 3 },
-      { grade: 'D-', min: 30, max: 34, points: 2 },
-      { grade: 'E', min: 0, max: 29, points: 1 },
-    ];
-  });
-
-  // Load students from localStorage if available
-  const [allStudents, setAllStudents] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_students');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 'S1', name: 'Alice Wanjiku', adm: 'ADM-2024-001', class: 'Form 1', streamId: 's1' },
-      { id: 'S2', name: 'Bob Otieno', adm: 'ADM-2024-002', class: 'Form 2', streamId: 's3' },
-      { id: 'S3', name: 'Charlie Mutua', adm: 'ADM-2024-003', class: 'Form 1', streamId: 's2' },
-      { id: 'S4', name: 'Diana Anyango', adm: 'ADM-2024-004', class: 'Form 2', streamId: 's4' },
-      { id: 'S5', name: 'Evans Kiprop', adm: 'ADM-2024-005', class: 'Form 1', streamId: 's1' },
-    ];
-  });
-
-  useEffect(() => {
-    const loadData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const schoolId = currentTeacher?.school_id || 'default-school';
-
-      try {
-        // Fetch from Supabase
-        const [examsData, studentsData, classesData] = await Promise.all([
-          supabaseService.getExams(schoolId),
-          supabaseService.getStudents(schoolId),
-          supabase.from('classes').select('*').eq('school_id', schoolId)
-        ]);
-
-        let marksData: { data: any[] | null } = { data: [] };
-        if (examsData && examsData.length > 0) {
-          const examIds = examsData.map(e => e.id);
-          const { data } = await supabase.from('marks').select('*').in('exam_id', examIds);
-          marksData = { data };
-        }
-
-        if (examsData) setExams(examsData);
-        if (studentsData) setAllStudents(studentsData);
-        if (classesData.data) setClasses(classesData.data);
-        if (marksData.data) setMarks(marksData.data);
-
-        // Still sync with localStorage for offline/legacy support if needed
-        // But Supabase is now the primary source
-      } catch (err) {
-        console.error('Error loading data from Supabase:', err);
-        
-        // Fallback to localStorage on error
-        const savedExams = localStorage.getItem('alakara_exams');
-        if (savedExams) setExams(JSON.parse(savedExams));
-
-        const savedStudents = localStorage.getItem('alakara_students');
-        if (savedStudents) setAllStudents(JSON.parse(savedStudents));
-
-        const savedClasses = localStorage.getItem('alakara_classes');
-        if (savedClasses) setClasses(JSON.parse(savedClasses));
-      }
-    };
-
-    loadData();
-    const interval = setInterval(loadData, 10000); // Increased interval for Supabase
-    return () => clearInterval(interval);
-  }, [currentTeacher]);
-
-  useEffect(() => {
-    localStorage.setItem('alakara_marks', JSON.stringify(marks));
-  }, [marks]);
-
-  useEffect(() => {
-    localStorage.setItem('alakara_students', JSON.stringify(allStudents));
-  }, [allStudents]);
-
-  const filteredStudents = activeExam ? allStudents.filter(s => {
-    const selectedClass = classes.find(c => c.id === entryConfig.classId);
-    const matchesClass = !entryConfig.classId || s.class?.trim() === selectedClass?.name?.trim();
-    const matchesStream = !entryConfig.streamId || s.streamId === entryConfig.streamId;
-    const classInExam = activeExam.classes.some((c: string) => c.trim() === s.class?.trim());
-    const classInAssignments = assignedClasses.some((c: string) => c.trim() === s.class?.trim());
-    return matchesClass && matchesStream && classInExam && classInAssignments;
-  }) : [];
-
-  const [newStudent, setNewStudent] = useState({ name: '', adm: '' });
-  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
-  const [showImportPreview, setShowImportPreview] = useState(false);
-  const [importPreviewData, setImportPreviewData] = useState<any[]>([]);
-  const [importErrors, setImportErrors] = useState<string[]>([]);
-  const [profilePhoto, setProfilePhoto] = useState<string | null>(currentTeacher.avatar_url || null);
-  const [publicResources, setPublicResources] = useState<any[]>([]);
-  const [isLoadingResources, setIsLoadingResources] = useState(false);
-  const [isFetchingStudents, setIsFetchingStudents] = useState(false);
-
-  useEffect(() => {
-    const fetchResources = async () => {
-      setIsLoadingResources(true);
-      try {
-        const resources = await supabaseService.getPublicResources();
-        setPublicResources(resources || []);
-      } catch (error) {
-        console.error('Error fetching resources:', error);
-      } finally {
-        setIsLoadingResources(false);
-      }
-    };
-    if (activeTab === 'materials') {
-      fetchResources();
-    }
-  }, [activeTab]);
+  const teacherRole = currentTeacher?.role || 'Teacher';
 
   const handleAddStudent = (e: FormEvent) => {
     e.preventDefault();
@@ -845,8 +767,6 @@ export const TeacherDashboard = () => {
     XLSX.utils.book_append_sheet(wb, ws, "Marks");
     XLSX.writeFile(wb, `${activeExam.title}_Marks_Template.xlsx`);
   };
-
-  const [selectedRankingSubject, setSelectedRankingSubject] = useState('');
 
   const getAnalysisData = () => {
     if (!selectedAnalysisExamId) return [];
