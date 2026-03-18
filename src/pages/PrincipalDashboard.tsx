@@ -106,15 +106,12 @@ export const PrincipalDashboard = () => {
           }
         }
 
-        if (profileId || profileEmail) {
-          const query = supabase.from('profiles').select('*');
-          if (profileId) {
-            query.eq('id', profileId);
-          } else {
-            query.eq('email', profileEmail).eq('role', 'principal');
-          }
-
-          const { data: profile } = await query.single();
+        if (profileId) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', profileId)
+            .single();
           
           if (profile && isMounted) {
             setPrincipalProfile(profile);
@@ -2595,7 +2592,6 @@ export const PrincipalDashboard = () => {
       await supabaseService.updateSchoolSettings(school.id, {
         name: schoolSettings.name,
         motto: schoolSettings.motto,
-        email: schoolSettings.email,
         phone: schoolSettings.phone,
         website: schoolSettings.website,
         address: schoolSettings.address,
@@ -3278,7 +3274,7 @@ export const PrincipalDashboard = () => {
                         <thead>
                           <tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
                             <th className="px-4 py-3">Name</th>
-                            <th className="px-4 py-3">Username/Email</th>
+                            <th className="px-4 py-3">Username/Phone</th>
                             <th className="px-4 py-3">Password</th>
                           </tr>
                         </thead>
@@ -3286,7 +3282,7 @@ export const PrincipalDashboard = () => {
                           {staff.map((member) => (
                             <tr key={member.id} className="hover:bg-gray-50/50 transition-colors">
                               <td className="px-4 py-3 font-bold text-sm">{member.name}</td>
-                              <td className="px-4 py-3 text-sm text-gray-500">{member.username || member.email}</td>
+                              <td className="px-4 py-3 text-sm text-gray-500">{member.username || member.phone}</td>
                               <td className="px-4 py-3 font-mono text-xs text-kenya-red font-bold">{member.password || '********'}</td>
                             </tr>
                           ))}
@@ -4725,19 +4721,6 @@ export const PrincipalDashboard = () => {
                                 onChange={(e) => setSchoolSettings({...schoolSettings, motto: e.target.value})}
                                 className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
                                 placeholder="e.g. Excellence in Service"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-kenya-black">Official Email</label>
-                            <div className="relative">
-                              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                              <input 
-                                type="email" 
-                                value={schoolSettings.email}
-                                onChange={(e) => setSchoolSettings({...schoolSettings, email: e.target.value})}
-                                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
-                                placeholder="info@school.ac.ke"
                               />
                             </div>
                           </div>

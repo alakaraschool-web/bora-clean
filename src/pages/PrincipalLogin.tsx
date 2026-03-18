@@ -54,32 +54,13 @@ export const PrincipalLogin = () => {
 
     try {
       const sanitizedInput = phone.trim();
-      const isEmail = sanitizedInput.includes('@');
       const cleanPhone = sanitizedInput.replace(/\s+/g, '');
       
-      let loginEmail = sanitizedInput;
-      let isPhoneLogin = false;
-
-      if (!isEmail) {
-        // Use RPC to find email by phone (bypasses RLS via SECURITY DEFINER)
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_email_by_phone', {
-          p_phone: cleanPhone,
-          p_role: 'principal'
-        });
-        
-        if (rpcData && rpcData.length > 0) {
-          loginEmail = rpcData[0].email;
-        } else {
-          isPhoneLogin = true;
-        }
-      }
-
-      // Try Supabase Auth
-      const { data, error: authError } = await supabase.auth.signInWithPassword(
-        isPhoneLogin 
-          ? { phone: cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`, password }
-          : { email: loginEmail, password }
-      );
+      // Try Supabase Auth directly with phone
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        phone: cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`,
+        password
+      });
 
       if (!authError && data.user) {
           const { data: profile } = await supabase
@@ -109,14 +90,11 @@ export const PrincipalLogin = () => {
           }
         }
 
-        // 2. Fallback: Check profiles table for custom credentials
+        // 2. Fallback: Check profiles table for custom credentials (phone based)
         const { data: customProfile } = await supabase
           .from('profiles')
           .select('*')
-          .or(isEmail 
-            ? `email.eq.${sanitizedInput}` 
-            : `phone.eq.${cleanPhone},phone.eq.${sanitizedInput},email.eq.${sanitizedInput}`
-          )
+          .eq('phone', cleanPhone)
           .eq('password', password)
           .eq('role', 'principal')
           .maybeSingle();

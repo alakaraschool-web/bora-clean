@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
     school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
-    email TEXT UNIQUE NOT NULL,
-    phone TEXT UNIQUE, -- For phone-based login
+    email TEXT UNIQUE,
+    phone TEXT UNIQUE NOT NULL, -- For phone-based login
     password TEXT, -- For fallback login
     name TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('super-admin', 'principal', 'teacher', 'student')),
@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS students (
     admission_number TEXT UNIQUE,
     name TEXT NOT NULL,
     email TEXT,
+    phone TEXT, -- Added phone for students
     class TEXT,
     stream TEXT,
     parent_name TEXT,
@@ -188,8 +189,11 @@ BEGIN
   -- Try to get role from profiles
   SELECT role INTO _role FROM profiles WHERE user_id = auth.uid() LIMIT 1;
   
-  -- Bootstrap super-admin by email if no profile exists yet
-  IF _role IS NULL AND auth.jwt() ->> 'email' = 'alakaraschool@gmail.com' THEN
+  -- Bootstrap super-admin by email or phone if no profile exists yet
+  IF _role IS NULL AND (
+    auth.jwt() ->> 'email' = 'alakaraschool@gmail.com' OR
+    auth.jwt() ->> 'phone' = '+254712345678' -- Example placeholder, should ideally be dynamic or matched
+  ) THEN
     RETURN 'super-admin';
   END IF;
   

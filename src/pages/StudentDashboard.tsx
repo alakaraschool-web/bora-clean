@@ -41,20 +41,20 @@ export const StudentDashboard = () => {
     const fetchStudentData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       let profileId = session?.user.id;
-      let profileEmail = session?.user.email;
+      let profilePhone = session?.user.phone;
 
       // Fallback: Check localStorage if no session
       if (!profileId && currentStudent) {
         profileId = currentStudent.id;
-        profileEmail = currentStudent.email;
+        profilePhone = currentStudent.phone;
       }
 
-      if (profileId || profileEmail) {
+      if (profileId || profilePhone) {
         const query = supabase.from('profiles').select('*');
         if (profileId && !profileId.startsWith('demo-')) {
           query.eq('id', profileId);
-        } else if (profileEmail) {
-          query.eq('email', profileEmail).eq('role', 'student');
+        } else if (profilePhone) {
+          query.eq('phone', profilePhone).eq('role', 'student');
         } else {
           return;
         }

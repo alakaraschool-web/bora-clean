@@ -54,13 +54,11 @@ export const StudentLogin = () => {
 
     try {
       const sanitizedInput = username.trim();
-      const isEmail = sanitizedInput.includes('@');
       const isPhone = /^\+?[\d\s-]{10,}$/.test(sanitizedInput);
 
-      // 1. Try Supabase Auth only if it looks like an email or phone
-      if (isEmail || isPhone) {
-        const authCredential = isEmail ? { email: sanitizedInput, password } : { phone: sanitizedInput, password };
-        const { data, error: authError } = await supabase.auth.signInWithPassword(authCredential);
+      // 1. Try Supabase Auth only if it looks like a phone number
+      if (isPhone) {
+        const { data, error: authError } = await supabase.auth.signInWithPassword({ phone: sanitizedInput, password });
 
         if (!authError && data.user) {
           const { data: profile, error: profileError } = await supabase
@@ -95,11 +93,11 @@ export const StudentLogin = () => {
         }
       }
 
-      // 2. Fallback: Check profiles table for custom credentials
+      // 2. Fallback: Check profiles table for custom credentials (phone based)
       const { data: customProfile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('email', sanitizedInput)
+        .eq('phone', sanitizedInput)
         .eq('password', password)
         .eq('role', 'student')
         .maybeSingle();
@@ -221,7 +219,7 @@ export const StudentLogin = () => {
 
             <div className="space-y-1">
               <label htmlFor="username" className="block text-xs font-black text-black uppercase tracking-widest">
-                Admission Number
+                Admission Number / Phone
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">

@@ -117,7 +117,7 @@ export const TeacherDashboard = () => {
         if (!isMounted) return;
 
         let profileId = session?.user.id;
-        let profileEmail = session?.user.email;
+        let profilePhone = session?.user.phone;
 
         // Fallback: Check localStorage if no session
         if (!profileId) {
@@ -125,18 +125,18 @@ export const TeacherDashboard = () => {
           if (savedTeacher) {
             const teacherObj = JSON.parse(savedTeacher);
             profileId = teacherObj.id;
-            profileEmail = teacherObj.email;
+            profilePhone = teacherObj.phone;
           }
         }
 
-        if (profileId || profileEmail) {
+        if (profileId || profilePhone) {
           const query = supabase.from('profiles').select('*');
           if (profileId && !profileId.startsWith('demo-')) {
             query.eq('id', profileId);
-          } else if (profileEmail) {
-            query.eq('email', profileEmail).eq('role', 'teacher');
+          } else if (profilePhone) {
+            query.eq('phone', profilePhone).eq('role', 'teacher');
           } else {
-            // If it's a demo teacher and no email, just keep currentTeacher if we have it
+            // If it's a demo teacher and no phone, just keep currentTeacher if we have it
             if (currentTeacher && isMounted) {
               setIsLoading(false);
             }
@@ -1820,8 +1820,8 @@ export const TeacherDashboard = () => {
                       <h3 className="text-sm font-black text-kenya-black uppercase tracking-widest border-b border-gray-100 pb-2">Account Details</h3>
                       <div className="space-y-4">
                         <div className="flex items-center justify-between py-2 border-b border-gray-50">
-                          <span className="text-sm text-gray-500">Email</span>
-                          <span className="text-sm font-bold text-kenya-black">{currentTeacher.email || 'teacher@boraschool.ke'}</span>
+                          <span className="text-sm text-gray-500">Phone</span>
+                          <span className="text-sm font-bold text-kenya-black">{currentTeacher.phone || '+254 700 000 000'}</span>
                         </div>
                         <div className="flex items-center justify-between py-2 border-b border-gray-50">
                           <span className="text-sm text-gray-500">Employee ID</span>
@@ -1852,8 +1852,8 @@ export const TeacherDashboard = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="p-4 border border-gray-100 rounded-xl">
-                    <p className="text-xs text-gray-400 uppercase font-bold mb-1">Email Address / Username</p>
-                    <p className="font-bold text-kenya-black">{currentTeacher.username || currentTeacher.email || 'j.kamau'}</p>
+                    <p className="text-xs text-gray-400 uppercase font-bold mb-1">Phone Number / Username</p>
+                    <p className="font-bold text-kenya-black">{currentTeacher.username || currentTeacher.phone || '+254 700 000 000'}</p>
                   </div>
                   <div className="p-4 border border-gray-100 rounded-xl">
                     <p className="text-xs text-gray-400 uppercase font-bold mb-1">Staff ID</p>

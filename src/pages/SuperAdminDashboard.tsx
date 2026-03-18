@@ -102,26 +102,23 @@ export const SuperAdminDashboard = () => {
         if (!isMounted) return;
 
         let profileId = session?.user.id;
-        let profileEmail = session?.user.email;
+        let profilePhone = session?.user.phone;
 
         // Fallback: Check localStorage if no session
         if (!profileId) {
           const savedAdmin = localStorage.getItem('alakara_super_admin');
           if (savedAdmin) {
             const adminObj = JSON.parse(savedAdmin);
-            profileEmail = adminObj.email;
+            profilePhone = adminObj.phone;
           }
         }
 
-        if (profileId || profileEmail) {
-          const query = supabase.from('profiles').select('*');
-          if (profileId) {
-            query.eq('id', profileId);
-          } else {
-            query.eq('email', profileEmail).eq('role', 'super-admin');
-          }
-
-          const { data: profile } = await query.single();
+        if (profileId) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', profileId)
+            .single();
           
           if (!isMounted) return;
 
@@ -130,17 +127,16 @@ export const SuperAdminDashboard = () => {
             localStorage.setItem('alakara_super_admin', JSON.stringify(profile));
             fetchAllData();
           } else if (
-            session?.user.email?.toLowerCase() === 'bahatisolomon70@gmail.com' || 
-            session?.user.email?.toLowerCase() === 'admin@boraschool.ke' ||
-            session?.user.email?.toLowerCase() === 'alakaraschool@gmail.com'
+            session?.user.phone === '+254712345678' ||
+            session?.user.phone === '+254700000000'
           ) {
             // Auto-create profile if missing for super-admin
             const { data: newProfile } = await supabase.from('profiles').upsert({
               id: session.user.id,
               user_id: session.user.id,
               name: 'Super Admin',
-              email: session.user.email,
-              role: 'super-admin'
+              role: 'super-admin',
+              phone: session.user.phone
             }).select().single();
             
             if (newProfile && isMounted) {
@@ -341,9 +337,9 @@ export const SuperAdminDashboard = () => {
       ...newSchool,
       status: 'Active',
       date: 'Just now',
-      principalEmail: creds.principal,
+      principalPhone: creds.principal,
       principalPass: creds.pass,
-      teacherEmail: creds.teacher,
+      teacherEmail: creds.teacher, // Keep this as a placeholder or remove if not needed
       teacherPass: creds.pass,
       subscriptionExpiresAt: expiryStr
     };
@@ -378,11 +374,11 @@ export const SuperAdminDashboard = () => {
           });
 
           const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
-          const principalEmail = `p${sanitizedPhone}@boraschool.ke`;
+          const formattedPhone = sanitizedPhone.startsWith('+') ? sanitizedPhone : `+254${sanitizedPhone.replace(/^0/, '')}`;
 
-          // 1. Create Principal Auth Account (using Email for reliability)
+          // 1. Create Principal Auth Account (using Phone directly)
           const { data: pAuthData, error: pAuthError } = await secondaryClient.auth.signUp({
-            email: principalEmail,
+            phone: formattedPhone,
             password: creds.pass
           });
 
@@ -393,7 +389,7 @@ export const SuperAdminDashboard = () => {
           let principalId = pAuthData.user?.id;
           let principalAuthId = pAuthData.user?.id;
           if (!principalId) {
-            const { data: existingP } = await supabase.from('profiles').select('id, user_id').eq('email', principalEmail).eq('role', 'principal').maybeSingle();
+            const { data: existingP } = await supabase.from('profiles').select('id, user_id').eq('phone', sanitizedPhone).eq('role', 'principal').maybeSingle();
             principalId = existingP?.id || crypto.randomUUID();
             principalAuthId = existingP?.user_id || null;
           }
@@ -404,7 +400,6 @@ export const SuperAdminDashboard = () => {
             user_id: principalAuthId,
             school_id: schoolData.id,
             name: `${newSchool.name} Principal`,
-            email: principalEmail,
             phone: sanitizedPhone,
             password: creds.pass,
             must_change_password: true,
@@ -413,32 +408,18 @@ export const SuperAdminDashboard = () => {
 
           if (pError) console.error('Principal Profile Error:', pError);
 
-          // 2. Create Teacher Auth Account (using Email to avoid phone conflict)
-          const teacherEmail = `s${sanitizedPhone}@boraschool.ke`;
-          const { data: tAuthData, error: tAuthError } = await secondaryClient.auth.signUp({
-            email: teacherEmail,
-            password: creds.pass
-          });
-
-          if (tAuthError && tAuthError.message !== 'User already registered') {
-            console.error('Teacher Auth Error:', tAuthError);
-          }
-
-          let teacherId = tAuthData.user?.id;
-          let teacherAuthId = tAuthData.user?.id;
-          if (!teacherId) {
-            const { data: existingT } = await supabase.from('profiles').select('id, user_id').eq('email', teacherEmail).eq('role', 'teacher').maybeSingle();
-            teacherId = existingT?.id || crypto.randomUUID();
-            teacherAuthId = existingT?.user_id || null;
-          }
-
+          // 2. Create Teacher Auth Account (using a derived phone or username if needed, but for now let's just create the profile)
+          // Since we can't have duplicate phones in Auth, and we don't use email, 
+          // we might need a different strategy for the default teacher account if it needs Auth.
+          // For now, we'll just create the profile without an auth link if it's just a placeholder.
+          
+          const teacherId = crypto.randomUUID();
+          
           // Create default teacher profile
           const { error: tError } = await supabase.from('profiles').upsert({
             id: teacherId,
-            user_id: teacherAuthId,
             school_id: schoolData.id,
             name: `${newSchool.name} Staff`,
-            email: teacherEmail,
             phone: null, // Avoid conflict with principal's phone
             password: creds.pass,
             must_change_password: true,
@@ -782,7 +763,6 @@ export const SuperAdminDashboard = () => {
         ...(allProfiles || []).map(p => ({ 
           id: p.id, 
           name: p.name, 
-          email: p.email, 
           phone: p.phone, 
           role: p.role, 
           type: 'Staff', 
@@ -792,7 +772,6 @@ export const SuperAdminDashboard = () => {
         ...(allStudents || []).map(s => ({ 
           id: s.id, 
           name: s.name, 
-          email: s.admission_number || s.adm, 
           phone: 'N/A', 
           role: 'Student', 
           type: 'Student', 
@@ -1224,7 +1203,7 @@ export const SuperAdminDashboard = () => {
                       <tr className="bg-gray-50/50 text-xs font-bold text-gray-400 uppercase tracking-wider">
                         <th className="px-6 py-4">School Details</th>
                         <th className="px-6 py-4">Principal Login</th>
-                        <th className="px-6 py-4">Staff Account</th>
+                        <th className="px-6 py-4">Staff Login</th>
                         <th className="px-6 py-4">Students</th>
                         <th className="px-6 py-4">Active Until</th>
                         <th className="px-6 py-4">Status</th>
@@ -1258,8 +1237,8 @@ export const SuperAdminDashboard = () => {
                           <td className="px-6 py-4">
                             <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-2 text-xs text-gray-600">
-                                <Mail className="w-3 h-3" />
-                                {school.teacherEmail}
+                                <Phone className="w-3 h-3" />
+                                {school.principalPhone}
                               </div>
                               <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono">
                                 <Key className="w-3 h-3" />
@@ -1541,7 +1520,7 @@ export const SuperAdminDashboard = () => {
                       {users
                         .filter(u => 
                           u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          u.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           u.schoolName?.toLowerCase().includes(searchQuery.toLowerCase())
                         )
                         .map((user) => (
@@ -1553,7 +1532,6 @@ export const SuperAdminDashboard = () => {
                               </div>
                               <div>
                                 <p className="font-bold text-kenya-black">{user.name}</p>
-                                <p className="text-xs text-gray-500">{user.email}</p>
                               </div>
                             </div>
                           </td>
