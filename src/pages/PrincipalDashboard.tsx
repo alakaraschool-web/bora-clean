@@ -1075,13 +1075,11 @@ export const PrincipalDashboard = () => {
           }
         });
 
-        const cleanPhone = sanitizedPhone.startsWith('+') ? sanitizedPhone : 
-                           sanitizedPhone.startsWith('0') ? `+254${sanitizedPhone.substring(1)}` : 
-                           `+${sanitizedPhone}`;
+        const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
-        // Use phone for signUp
+        // Use email for signUp to avoid phone auth configuration issues
         const { data: authData, error: authError } = await secondaryClient.auth.signUp({
-          phone: cleanPhone,
+          email: dummyEmail,
           password: password
         });
 
@@ -1236,11 +1234,12 @@ export const PrincipalDashboard = () => {
 
         // Use ADM number to generate a virtual phone number for Auth
         const studentPhone = `+254${newStudent.adm.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
+        const dummyEmail = `${studentPhone.replace('+', '')}@student.boraschool.ke`;
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account
         const { data: authData, error: authError } = await secondaryClient.auth.signUp({
-          phone: studentPhone,
+          email: dummyEmail,
           password: password
         });
 

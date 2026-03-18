@@ -47,10 +47,25 @@ export const TeacherLogin = () => {
       const cleanPhone = sanitizedInput.replace(/\s+/g, '');
       
       // Try Supabase Auth directly with phone
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        phone: cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`,
+      const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`;
+      let { data, error: authError } = await supabase.auth.signInWithPassword({
+        phone: formattedPhone,
         password
       });
+
+      // Fallback to dummy email if phone login fails
+      if (authError) {
+        const dummyEmail = `${cleanPhone}@boraschool.ke`;
+        const { data: emailData, error: emailError } = await supabase.auth.signInWithPassword({
+          email: dummyEmail,
+          password
+        });
+        
+        if (!emailError) {
+          data = emailData;
+          authError = null;
+        }
+      }
 
       if (!authError && data.user) {
           const { data: profile } = await supabase

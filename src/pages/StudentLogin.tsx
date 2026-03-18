@@ -56,16 +56,47 @@ export const StudentLogin = () => {
       const sanitizedInput = username.trim();
       const isPhone = /^\+?[\d\s-]{10,}$/.test(sanitizedInput);
 
-      // 1. Try Supabase Auth only if it looks like a phone number
-      if (isPhone) {
-        const { data, error: authError } = await supabase.auth.signInWithPassword({ phone: sanitizedInput, password });
+      // 1. Try Supabase Auth
+      let authData: any = null;
+      let authError: any = null;
 
-        if (!authError && data.user) {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
+      if (isPhone) {
+        const formattedPhone = sanitizedInput.startsWith('+') ? sanitizedInput : `+254${sanitizedInput.replace(/^0/, '')}`;
+        const { data, error } = await supabase.auth.signInWithPassword({ phone: formattedPhone, password });
+        authData = data;
+        authError = error;
+
+        // Fallback to dummy email if phone login fails
+        if (authError) {
+          const dummyEmail = `${sanitizedInput.replace(/\s+/g, '')}@student.boraschool.ke`;
+          const { data: emailData, error: emailError } = await supabase.auth.signInWithPassword({
+            email: dummyEmail,
+            password
+          });
+          
+          if (!emailError) {
+            authData = emailData;
+            authError = null;
+          }
+        }
+      } else {
+        // Try dummy email derived from ADM
+        const studentPhone = `254${sanitizedInput.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
+        const dummyEmail = `${studentPhone}@student.boraschool.ke`;
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: dummyEmail,
+          password
+        });
+        authData = data;
+        authError = error;
+      }
+
+      if (!authError && authData?.user) {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
 
           if (profile && profile.role === 'student') {
             const { data: student, error: studentError } = await supabase
@@ -91,7 +122,6 @@ export const StudentLogin = () => {
             await supabase.auth.signOut();
           }
         }
-      }
 
       // 2. Fallback: Check profiles table for custom credentials (phone based)
       const { data: customProfile } = await supabase

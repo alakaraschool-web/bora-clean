@@ -374,11 +374,11 @@ export const SuperAdminDashboard = () => {
           });
 
           const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
-          const formattedPhone = sanitizedPhone.startsWith('+') ? sanitizedPhone : `+254${sanitizedPhone.replace(/^0/, '')}`;
+          const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
-          // 1. Create Principal Auth Account (using Phone directly)
+          // 1. Create Principal Auth Account (using Email directly)
           const { data: pAuthData, error: pAuthError } = await secondaryClient.auth.signUp({
-            phone: formattedPhone,
+            email: dummyEmail,
             password: creds.pass
           });
 

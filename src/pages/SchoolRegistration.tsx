@@ -76,11 +76,11 @@ export const SchoolRegistration = () => {
 
     try {
       const sanitizedPhone = formData.principalPhone.replace(/\s+/g, '');
-      const formattedPhone = sanitizedPhone.startsWith('+') ? sanitizedPhone : `+254${sanitizedPhone.replace(/^0/, '')}`;
+      const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
-      // 1. Sign up user in Supabase Auth using phone (more reliable than email in this setup)
+      // 1. Sign up user in Supabase Auth using email (more reliable than phone in this setup)
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        phone: formattedPhone,
+        email: dummyEmail,
         password: formData.password,
         options: {
           data: {
