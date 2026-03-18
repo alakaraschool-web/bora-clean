@@ -82,50 +82,111 @@ export const PrincipalDashboard = () => {
     const saved = localStorage.getItem('alakara_current_school');
     return saved ? JSON.parse(saved) : null;
   });
+  const [principalProfile, setPrincipalProfile] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchSchoolData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      let profileId = session?.user.id;
-      let profileEmail = session?.user.email;
-
-      // Fallback: Check localStorage if no session
-      if (!profileId) {
-        const savedSchool = localStorage.getItem('alakara_current_school');
-        if (savedSchool) {
-          const schoolObj = JSON.parse(savedSchool);
-          profileEmail = schoolObj.principalEmail;
-        }
-      }
-
-      if (profileId || profileEmail) {
-        const query = supabase.from('profiles').select('*');
-        if (profileId) {
-          query.eq('id', profileId);
-        } else {
-          query.eq('email', profileEmail).eq('role', 'principal');
-        }
-
-        const { data: profile } = await query.single();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (profile) {
-          const { data: schoolData } = await supabase
-            .from('schools')
-            .select('*')
-            .eq('id', profile.school_id)
-            .single();
-          
-          if (schoolData) {
-            setSchool(schoolData);
-            localStorage.setItem('alakara_current_school', JSON.stringify(schoolData));
+        if (!isMounted) return;
+
+        let profileId = session?.user.id;
+        let profileEmail = session?.user.email;
+
+        // Fallback: Check localStorage if no session
+        if (!profileId) {
+          const savedSchool = localStorage.getItem('alakara_current_school');
+          if (savedSchool) {
+            const schoolObj = JSON.parse(savedSchool);
+            profileEmail = schoolObj.principalEmail;
           }
         }
-      } else if (!school) {
-        navigate('/principal-login');
+
+        if (profileId || profileEmail) {
+          const query = supabase.from('profiles').select('*');
+          if (profileId) {
+            query.eq('id', profileId);
+          } else {
+            query.eq('email', profileEmail).eq('role', 'principal');
+          }
+
+          const { data: profile } = await query.single();
+          
+          if (profile && isMounted) {
+            setPrincipalProfile(profile);
+            const { data: schoolData } = await supabase
+              .from('schools')
+              .select('*')
+              .eq('id', profile.school_id)
+              .single();
+            
+            if (schoolData && isMounted) {
+              setSchool(schoolData);
+              localStorage.setItem('alakara_current_school', JSON.stringify(schoolData));
+            }
+          } else if (!profile && isMounted) {
+            // Fallback to localStorage if profile fetch fails
+            const savedSchool = localStorage.getItem('alakara_current_school');
+            if (savedSchool) {
+              setSchool(JSON.parse(savedSchool));
+            } else {
+              navigate('/principal-login');
+            }
+          }
+        } else if (isMounted) {
+          // Check if we have a school in localStorage even without a session
+          const savedSchool = localStorage.getItem('alakara_current_school');
+          if (savedSchool) {
+            setSchool(JSON.parse(savedSchool));
+          } else {
+            navigate('/principal-login');
+          }
+        }
+      } catch (error) {
+        console.error('Principal auth error:', error);
+        const savedSchool = localStorage.getItem('alakara_current_school');
+        if (savedSchool && isMounted) {
+          setSchool(JSON.parse(savedSchool));
+        } else if (isMounted) {
+          navigate('/principal-login');
+        }
+      } finally {
+        if (isMounted) setIsAuthLoading(false);
       }
     };
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('alakara_current_school');
+        navigate('/principal-login');
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session) fetchSchoolData();
+      }
+    });
+
     fetchSchoolData();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [navigate]);
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-kenya-black flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-kenya-green animate-spin mx-auto mb-4" />
+          <p className="text-white/60 font-medium italic">Verifying credentials...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!school) {
     return (
@@ -1002,10 +1063,10 @@ export const PrincipalDashboard = () => {
       { 
         id: '1', 
         name: 'John Kamau', 
-        email: 'j.kamau@bora.ke', 
+        email: '0712345678', 
         role: 'Head of Science', 
         status: 'Active', 
-        username: 'j.kamau@bora.ke', 
+        username: '0712345678', 
         password: 'password123', 
         mustChangePassword: true, 
         assignments: [
@@ -1016,10 +1077,10 @@ export const PrincipalDashboard = () => {
       { 
         id: '2', 
         name: 'Sarah Anyango', 
-        email: 's.anyango@bora.ke', 
+        email: '0723456789', 
         role: 'Mathematics Teacher', 
         status: 'Active', 
-        username: 's.anyango@bora.ke', 
+        username: '0723456789', 
         password: 'password123', 
         mustChangePassword: true, 
         assignments: [
@@ -1135,7 +1196,8 @@ export const PrincipalDashboard = () => {
         const { data: profilesData } = await supabase
           .from('profiles')
           .select('*')
-          .eq('role', 'teacher'); // Or filter by school if profiles had school_id
+          .eq('role', 'teacher')
+          .eq('school_id', school.id);
         if (profilesData) setStaff(profilesData);
 
       } catch (error) {
@@ -1158,6 +1220,14 @@ export const PrincipalDashboard = () => {
     
     // Use phone number as identifier, removing email extensions fully
     const sanitizedPhone = newStaff.phone.replace(/\s+/g, '');
+    const isValidPhone = /^(254\d{9}|07\d{8}|01\d{8})$/.test(sanitizedPhone);
+
+    if (!isValidPhone) {
+      alert('Phone number must start with 254, 07, or 01 and be of valid length');
+      setIsLoading(false);
+      return;
+    }
+
     let finalEmail = sanitizedPhone;
     
     if (!finalEmail && newStaff.email) {
@@ -1165,6 +1235,20 @@ export const PrincipalDashboard = () => {
     }
 
     if (editingStaff) {
+      // Safety check: Prevent changing role of a teacher
+      if (editingStaff.role?.toLowerCase() === 'teacher' && newStaff.role.toLowerCase() !== 'teacher') {
+        alert('Teacher roles cannot be changed once assigned.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Safety check: Prevent assigning principal or super-admin roles
+      if (newStaff.role.toLowerCase() === 'principal' || newStaff.role.toLowerCase() === 'super-admin') {
+        alert('You cannot assign Principal or Super Admin roles.');
+        setIsLoading(false);
+        return;
+      }
+
       const updatedStaff = staff.map(s => s.id === editingStaff.id ? { 
         ...editingStaff, 
         name: newStaff.name, 
@@ -1192,6 +1276,13 @@ export const PrincipalDashboard = () => {
       setEditingStaff(null);
       setIsLoading(false);
     } else {
+      // Safety check: Prevent assigning principal or super-admin roles
+      if (newStaff.role.toLowerCase() === 'principal' || newStaff.role.toLowerCase() === 'super-admin') {
+        alert('You cannot assign Principal or Super Admin roles.');
+        setIsLoading(false);
+        return;
+      }
+
       const password = Math.random().toString(36).slice(-8);
       
       try {
@@ -1226,28 +1317,36 @@ export const PrincipalDashboard = () => {
         }
 
         let authUserId = authData.user?.id;
+        let linkedUserId = authData.user?.id;
         
         if (!authUserId) {
           // User might already exist in Auth. Try to find them in profiles.
           const { data: existingProfile } = await supabase
             .from('profiles')
-            .select('id')
+            .select('id, user_id')
             .eq(isEmail ? 'email' : 'phone', isEmail ? finalEmail : sanitizedPhone)
             .maybeSingle();
           
-          authUserId = existingProfile?.id || crypto.randomUUID();
+          if (existingProfile) {
+            authUserId = existingProfile.id;
+            linkedUserId = existingProfile.user_id;
+          } else {
+            authUserId = crypto.randomUUID();
+            linkedUserId = null;
+          }
         }
 
         // 2. Sync with Supabase profiles table
         const { data, error } = await supabase.from('profiles').upsert({
           id: authUserId,
-          user_id: authUserId,
+          user_id: linkedUserId,
           name: newStaff.name,
           email: finalEmail,
           phone: sanitizedPhone,
           role: newStaff.role.toLowerCase(),
           school_id: school.id,
           password: password, // Store password in profile for cross-device login fallback
+          must_change_password: true,
           assignments: newStaff.assignments
         }).select().single();
 
@@ -1300,7 +1399,21 @@ export const PrincipalDashboard = () => {
   };
 
   const updateStaffRole = (id: string, newRole: string) => {
+    const member = staff.find(s => s.id === id);
+    if (member && member.role?.toLowerCase() === 'teacher') {
+      alert('Teacher roles cannot be changed once assigned.');
+      return;
+    }
     setStaff(staff.map(s => s.id === id ? { ...s, role: newRole } : s));
+    
+    // Sync with Supabase
+    supabase.from('profiles').update({
+      role: newRole.toLowerCase()
+    }).eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error updating role in Supabase:', error);
+      }
+    });
   };
 
   const deleteStudentMark = (studentId: string, examId: string, subject: string) => {
@@ -1364,6 +1477,7 @@ export const PrincipalDashboard = () => {
         }
 
         let authUserId = authData.user?.id;
+        let linkedUserId = authData.user?.id;
         
         if (!authUserId) {
           // User might already exist. Try to find them.
@@ -1373,7 +1487,19 @@ export const PrincipalDashboard = () => {
             .eq('adm', newStudent.adm)
             .maybeSingle();
           
-          authUserId = existingStudent?.id || crypto.randomUUID();
+          if (existingStudent) {
+            authUserId = existingStudent.id;
+            // Try to find linked user_id from profiles
+            const { data: existingProfile } = await supabase
+              .from('profiles')
+              .select('user_id')
+              .eq('student_id', existingStudent.id)
+              .maybeSingle();
+            linkedUserId = existingProfile?.user_id || null;
+          } else {
+            authUserId = crypto.randomUUID();
+            linkedUserId = null;
+          }
         }
 
         // 2. Create Student Record
@@ -1392,13 +1518,14 @@ export const PrincipalDashboard = () => {
         // 3. Create Profile Record
         const { error: profileError } = await supabase.from('profiles').upsert({
           id: authUserId,
-          user_id: authUserId,
+          user_id: linkedUserId,
           name: newStudent.name,
           email: studentEmail,
           role: 'student',
           school_id: school.id,
           student_id: studentData.id,
-          password: password
+          password: password,
+          must_change_password: true
         });
 
         if (profileError) throw profileError;
@@ -2616,7 +2743,23 @@ export const PrincipalDashboard = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {isSuspended && (
+          <div className="absolute inset-0 z-[60] bg-white/80 backdrop-blur-md flex items-center justify-center p-8">
+            <div className="max-w-md w-full bg-white border-4 border-kenya-red p-10 shadow-[16px_16px_0px_0px_rgba(231,0,0,1)] text-center">
+              <div className="w-20 h-20 bg-kenya-red/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <ShieldAlert className="w-10 h-10 text-kenya-red" />
+              </div>
+              <h2 className="text-3xl font-black text-kenya-black uppercase tracking-tighter mb-4 italic">School Suspended</h2>
+              <p className="text-gray-600 font-bold uppercase text-sm leading-relaxed mb-8">
+                Access to this school's portal has been suspended by the super admin or the subscription has expired. Please contact support for more information.
+              </p>
+              <div className="h-2 w-full bg-kenya-red/20 rounded-full overflow-hidden">
+                <div className="h-full bg-kenya-red animate-pulse" style={{ width: '100%' }} />
+              </div>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-8 shrink-0">
           <div className="flex items-center gap-4">
@@ -2637,7 +2780,7 @@ export const PrincipalDashboard = () => {
             <div className="h-8 w-px bg-gray-200 mx-2" />
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-bold text-kenya-black">Principal</p>
+                <p className="text-sm font-bold text-kenya-black">{principalProfile?.name || 'Principal'}</p>
                 <p className="text-xs text-gray-500">{school.location}</p>
               </div>
               <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center">
@@ -2851,7 +2994,8 @@ export const PrincipalDashboard = () => {
                             <select 
                               value={member.role}
                               onChange={(e) => updateStaffRole(member.id, e.target.value)}
-                              className="bg-gray-50 border border-gray-200 rounded-lg text-sm px-2 py-1 focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                              disabled={member.role?.toLowerCase() === 'teacher'}
+                              className={`bg-gray-50 border border-gray-200 rounded-lg text-sm px-2 py-1 focus:outline-none focus:ring-2 focus:ring-kenya-green/20 ${member.role?.toLowerCase() === 'teacher' ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               <option value="Principal">Principal</option>
                               <option value="Deputy Principal">Deputy Principal</option>
@@ -4829,7 +4973,8 @@ export const PrincipalDashboard = () => {
                   <select 
                     value={newStaff.role}
                     onChange={(e) => setNewStaff({...newStaff, role: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                    disabled={editingStaff && editingStaff.role?.toLowerCase() === 'teacher'}
+                    className={`w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 ${editingStaff && editingStaff.role?.toLowerCase() === 'teacher' ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <option value="Principal">Principal</option>
                     <option value="Deputy Principal">Deputy Principal</option>
@@ -4842,6 +4987,9 @@ export const PrincipalDashboard = () => {
                     <option value="Secretary">Secretary</option>
                     <option value="Admin">Admin</option>
                   </select>
+                  {editingStaff && editingStaff.role?.toLowerCase() === 'teacher' && (
+                    <p className="text-[10px] text-gray-500 italic ml-1">Teacher roles cannot be changed once assigned.</p>
+                  )}
                 </div>
 
                 <div className="space-y-4">

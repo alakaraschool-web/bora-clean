@@ -38,6 +38,14 @@ export const LoginChoice = () => {
       hoverColor: 'hover:bg-green-700',
       isRegistration: true
     },
+    {
+      title: 'Super Admin',
+      description: 'Central command for system-wide management, school approvals, and analytics.',
+      icon: ShieldAlert,
+      path: '/super-admin',
+      color: 'bg-kenya-red',
+      hoverColor: 'hover:bg-red-900',
+    },
   ];
 
   return (

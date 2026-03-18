@@ -4,6 +4,7 @@ import { GraduationCap, Lock, User, ArrowLeft, ShieldCheck, Loader2 } from 'luci
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { PasswordResetModal } from '../components/PasswordResetModal';
+import { ForcePasswordChangeModal } from '../components/ForcePasswordChangeModal';
 import { supabase } from '../lib/supabase';
 
 export const PrincipalLogin = () => {
@@ -12,6 +13,9 @@ export const PrincipalLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showForceChange, setShowForceChange] = useState(false);
+  const [pendingProfileId, setPendingProfileId] = useState<string | null>(null);
+  const [pendingSchool, setPendingSchool] = useState<any>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -51,23 +55,33 @@ export const PrincipalLogin = () => {
     try {
       const sanitizedInput = phone.trim();
       const isEmail = sanitizedInput.includes('@');
-      
-      // Ensure E.164 format for Supabase Auth if it's a phone number
       const cleanPhone = sanitizedInput.replace(/\s+/g, '');
-      const authPhone = cleanPhone.startsWith('+') ? cleanPhone : 
-                        cleanPhone.startsWith('0') ? `+254${cleanPhone.substring(1)}` : 
-                        `+${cleanPhone}`;
-      const isPhone = /^\+?[\d\s-]{10,}$/.test(authPhone);
+      
+      let loginEmail = sanitizedInput;
+      let isPhoneLogin = false;
 
-      // Try Supabase Auth only if it looks like an email or phone
-      if (isEmail || isPhone) {
-        const { data, error: authError } = await supabase.auth.signInWithPassword(
-          isEmail 
-            ? { email: sanitizedInput, password } 
-            : { phone: authPhone, password }
-        );
+      if (!isEmail) {
+        // Use RPC to find email by phone (bypasses RLS via SECURITY DEFINER)
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_email_by_phone', {
+          p_phone: cleanPhone,
+          p_role: 'principal'
+        });
+        
+        if (rpcData && rpcData.length > 0) {
+          loginEmail = rpcData[0].email;
+        } else {
+          isPhoneLogin = true;
+        }
+      }
 
-        if (!authError && data.user) {
+      // Try Supabase Auth
+      const { data, error: authError } = await supabase.auth.signInWithPassword(
+        isPhoneLogin 
+          ? { phone: cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`, password }
+          : { email: loginEmail, password }
+      );
+
+      if (!authError && data.user) {
           const { data: profile } = await supabase
             .from('profiles')
             .select('*')
@@ -82,45 +96,63 @@ export const PrincipalLogin = () => {
               .single();
 
             if (school) {
+              if (profile.must_change_password) {
+                setPendingProfileId(profile.id);
+                setPendingSchool(school);
+                setShowForceChange(true);
+                return;
+              }
               localStorage.setItem('alakara_current_school', JSON.stringify(school));
               navigate('/principal/dashboard');
               return;
             }
           }
         }
-      }
 
-      // 2. Fallback: Check profiles table for custom credentials
-      const { data: customProfile } = await supabase
-        .from('profiles')
-        .select('*')
-        .or(isEmail 
-          ? `email.eq.${sanitizedInput}` 
-          : `phone.eq.${cleanPhone},phone.eq.${sanitizedInput},email.eq.${sanitizedInput}`
-        )
-        .eq('password', password)
-        .eq('role', 'principal')
-        .maybeSingle();
-
-      if (customProfile) {
-        const { data: school } = await supabase
-          .from('schools')
+        // 2. Fallback: Check profiles table for custom credentials
+        const { data: customProfile } = await supabase
+          .from('profiles')
           .select('*')
-          .eq('id', customProfile.school_id)
-          .single();
+          .or(isEmail 
+            ? `email.eq.${sanitizedInput}` 
+            : `phone.eq.${cleanPhone},phone.eq.${sanitizedInput},email.eq.${sanitizedInput}`
+          )
+          .eq('password', password)
+          .eq('role', 'principal')
+          .maybeSingle();
 
-        if (school) {
-          localStorage.setItem('alakara_current_school', JSON.stringify(school));
-          navigate('/principal/dashboard');
-          return;
+        if (customProfile) {
+          const { data: school } = await supabase
+            .from('schools')
+            .select('*')
+            .eq('id', customProfile.school_id)
+            .single();
+
+          if (school) {
+            if (customProfile.must_change_password) {
+              setPendingProfileId(customProfile.id);
+              setPendingSchool(school);
+              setShowForceChange(true);
+              return;
+            }
+            localStorage.setItem('alakara_current_school', JSON.stringify(school));
+            navigate('/principal/dashboard');
+            return;
+          }
         }
-      }
 
-      setError('Invalid principal credentials or school not registered');
-    } catch (err: any) {
+        setError('Invalid principal credentials or school not registered');
+      } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleForceChangeSuccess = () => {
+    if (pendingSchool) {
+      localStorage.setItem('alakara_current_school', JSON.stringify(pendingSchool));
+      navigate('/principal/dashboard');
     }
   };
 
@@ -240,6 +272,14 @@ export const PrincipalLogin = () => {
           onClose={() => setShowResetModal(false)} 
           role="principal" 
         />
+
+        {pendingProfileId && (
+          <ForcePasswordChangeModal
+            isOpen={showForceChange}
+            profileId={pendingProfileId}
+            onSuccess={handleForceChangeSuccess}
+          />
+        )}
 
         <p className="mt-8 text-center text-xs text-gray-500 tracking-widest uppercase">
           &copy; 2026 Bora School KE Leadership Portal

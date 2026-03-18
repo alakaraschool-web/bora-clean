@@ -18,10 +18,11 @@ import {
   Check,
   Copy,
   Mail,
+  Loader2,
+  Trash2,
   Key,
   Filter,
   ShieldAlert,
-  Trash2,
   Eye,
   EyeOff,
   MessageSquare,
@@ -68,12 +69,15 @@ interface ExamMaterial {
   id: string;
   title: string;
   subject: string;
+  category: string;
+  description?: string;
   schoolName: string;
   teacherName: string;
   uploadDate: string;
   status: 'Pending' | 'Approved' | 'Rejected';
-  fileType: 'PDF' | 'DOCX' | 'ZIP';
+  fileType: string;
   visibility: 'Public' | 'Hidden';
+  fileUrl?: string;
 }
 
 import { supabase } from '../lib/supabase';
@@ -82,121 +86,134 @@ import { supabaseService } from '../services/supabaseService';
 export const SuperAdminDashboard = () => {
   const navigate = useNavigate();
   const [adminProfile, setAdminProfile] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'schools' | 'analytics' | 'exams' | 'stories'>('dashboard');
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'schools' | 'analytics' | 'exams' | 'stories' | 'users'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
+    let isMounted = true;
+
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      let profileId = session?.user.id;
-      let profileEmail = session?.user.email;
-
-      // Fallback: Check localStorage if no session
-      if (!profileId) {
-        const savedAdmin = localStorage.getItem('alakara_super_admin');
-        if (savedAdmin) {
-          const adminObj = JSON.parse(savedAdmin);
-          profileEmail = adminObj.email;
-        }
-      }
-
-      if (profileId || profileEmail) {
-        const query = supabase.from('profiles').select('*');
-        if (profileId) {
-          query.eq('id', profileId);
-        } else {
-          query.eq('email', profileEmail).eq('role', 'super-admin');
-        }
-
-        const { data: profile } = await query.single();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (profile && profile.role === 'super-admin') {
-          setAdminProfile(profile);
-          fetchAllData();
+        if (!isMounted) return;
+
+        let profileId = session?.user.id;
+        let profileEmail = session?.user.email;
+
+        // Fallback: Check localStorage if no session
+        if (!profileId) {
+          const savedAdmin = localStorage.getItem('alakara_super_admin');
+          if (savedAdmin) {
+            const adminObj = JSON.parse(savedAdmin);
+            profileEmail = adminObj.email;
+          }
+        }
+
+        if (profileId || profileEmail) {
+          const query = supabase.from('profiles').select('*');
+          if (profileId) {
+            query.eq('id', profileId);
+          } else {
+            query.eq('email', profileEmail).eq('role', 'super-admin');
+          }
+
+          const { data: profile } = await query.single();
+          
+          if (!isMounted) return;
+
+          if (profile && profile.role === 'super-admin') {
+            setAdminProfile(profile);
+            localStorage.setItem('alakara_super_admin', JSON.stringify(profile));
+            fetchAllData();
+          } else if (
+            session?.user.email?.toLowerCase() === 'bahatisolomon70@gmail.com' || 
+            session?.user.email?.toLowerCase() === 'admin@boraschool.ke' ||
+            session?.user.email?.toLowerCase() === 'alakaraschool@gmail.com'
+          ) {
+            // Auto-create profile if missing for super-admin
+            const { data: newProfile } = await supabase.from('profiles').upsert({
+              id: session.user.id,
+              user_id: session.user.id,
+              name: 'Super Admin',
+              email: session.user.email,
+              role: 'super-admin'
+            }).select().single();
+            
+            if (newProfile && isMounted) {
+              setAdminProfile(newProfile);
+              localStorage.setItem('alakara_super_admin', JSON.stringify(newProfile));
+              fetchAllData();
+            } else if (isMounted) {
+              navigate('/super-admin');
+            }
+          } else if (isMounted) {
+            // If we have a session but no profile, and it's not a bootstrap admin, redirect
+            if (session) {
+              navigate('/super-admin');
+            } else {
+              // If no session but we have a profile in localStorage, we can stay (mock mode)
+              const savedAdmin = localStorage.getItem('alakara_super_admin');
+              if (savedAdmin) {
+                setAdminProfile(JSON.parse(savedAdmin));
+                fetchAllData();
+              } else {
+                navigate('/super-admin');
+              }
+            }
+          }
         } else {
+          // No session and no localStorage
           navigate('/super-admin');
         }
-      } else {
-        // Fallback for mock login if no session
-        const isMockLoggedIn = true; // For now assume mock login works if navigated here
-        if (isMockLoggedIn) fetchAllData();
-        else navigate('/super-admin');
+      } catch (error) {
+        console.error('Auth check error:', error);
+        // On error, try to use localStorage as fallback
+        const savedAdmin = localStorage.getItem('alakara_super_admin');
+        if (savedAdmin && isMounted) {
+          setAdminProfile(JSON.parse(savedAdmin));
+          fetchAllData();
+        } else if (isMounted) {
+          navigate('/super-admin');
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
 
-    const fetchAllData = async () => {
-      try {
-        // 1. Fetch Schools and Student Counts
-        const schoolsData = await supabaseService.getAllSchools();
-        const studentCounts = await supabaseService.getStudentCountsBySchool();
-        
-        if (schoolsData) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('school_id, phone, email')
-            .eq('role', 'principal');
-
-          const mappedSchools: School[] = schoolsData.map((s: any) => {
-            const principalProfile = profiles?.find(p => p.school_id === s.id);
-            return {
-              id: s.id,
-              name: s.name,
-              location: s.location || '',
-              county: s.county || '',
-              subCounty: s.sub_county || '',
-              type: s.type || 'Secondary',
-              students: (studentCounts[s.id] || 0).toString(),
-              status: 'Active',
-              date: new Date(s.created_at).toLocaleDateString(),
-              principalPhone: principalProfile?.phone || 'N/A',
-              principalPass: '********',
-              teacherEmail: `staff.${s.name.toLowerCase().replace(/\s+/g, '')}@bora.ke`,
-              teacherPass: '********',
-              subscriptionExpiresAt: s.subscription_expires_at
-            };
-          });
-          setSchools(mappedSchools);
-        }
-
-        // 2. Fetch Exam Materials
-        const materialsData = await supabaseService.getExamMaterials();
-        if (materialsData) {
-          setExamMaterials(materialsData.map((m: any) => ({
-            id: m.id,
-            title: m.title,
-            subject: m.subject,
-            schoolName: m.schools?.name || 'Unknown',
-            teacherName: m.teacher_name,
-            uploadDate: new Date(m.created_at).toLocaleDateString(),
-            status: m.status as any,
-            fileType: m.file_type as any || 'PDF',
-            visibility: m.visibility as any
-          })));
-        }
-
-        // 3. Fetch Success Stories
-        const storiesData = await supabaseService.getSuccessStories();
-        if (storiesData) {
-          setSuccessStories(storiesData.map((s: any) => ({
-            id: s.id,
-            name: s.author_name,
-            role: s.title,
-            content: s.content,
-            image: s.image_url || `https://picsum.photos/seed/${s.author_name}/100/100`
-          })));
-        }
-      } catch (err) {
-        console.error('Error loading super admin data:', err);
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('alakara_super_admin');
+        navigate('/super-admin');
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session) checkSession();
       }
-    };
+    });
 
     checkSession();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [navigate]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadForm, setUploadForm] = useState({
+    title: '',
+    subject: '',
+    category: 'Exam',
+    description: '',
+    file: null as File | null
+  });
   const [showStoryModal, setShowStoryModal] = useState(false);
   const [generatedCreds, setGeneratedCreds] = useState<{ principal: string; teacher: string; pass: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pending' | 'Suspended'>('All');
-  const [searchQuery, setSearchQuery] = useState('');
 
   const [examMaterials, setExamMaterials] = useState<ExamMaterial[]>(() => {
     const saved = localStorage.getItem('alakara_exam_materials');
@@ -304,6 +321,15 @@ export const SuperAdminDashboard = () => {
 
   const handleAddSchool = (e: FormEvent) => {
     e.preventDefault();
+    
+    const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
+    const isValidPhone = /^(254\d{9}|07\d{8}|01\d{8})$/.test(sanitizedPhone);
+
+    if (!isValidPhone) {
+      alert('Phone number must start with 254, 07, or 01 and be of valid length');
+      return;
+    }
+
     const creds = generateCredentials(newSchool.name, newSchool.principalPhone);
     
     const defaultExpiry = new Date();
@@ -352,13 +378,11 @@ export const SuperAdminDashboard = () => {
           });
 
           const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
-          const authPhone = sanitizedPhone.startsWith('+') ? sanitizedPhone : 
-                            sanitizedPhone.startsWith('0') ? `+254${sanitizedPhone.substring(1)}` : 
-                            `+${sanitizedPhone}`;
+          const principalEmail = `p${sanitizedPhone}@boraschool.ke`;
 
-          // 1. Create Principal Auth Account
+          // 1. Create Principal Auth Account (using Email for reliability)
           const { data: pAuthData, error: pAuthError } = await secondaryClient.auth.signUp({
-            phone: authPhone,
+            email: principalEmail,
             password: creds.pass
           });
 
@@ -367,25 +391,30 @@ export const SuperAdminDashboard = () => {
           }
 
           let principalId = pAuthData.user?.id;
+          let principalAuthId = pAuthData.user?.id;
           if (!principalId) {
-            const { data: existingP } = await supabase.from('profiles').select('id').eq('phone', sanitizedPhone).eq('role', 'principal').maybeSingle();
+            const { data: existingP } = await supabase.from('profiles').select('id, user_id').eq('email', principalEmail).eq('role', 'principal').maybeSingle();
             principalId = existingP?.id || crypto.randomUUID();
+            principalAuthId = existingP?.user_id || null;
           }
           
           // Create principal profile
           const { error: pError } = await supabase.from('profiles').upsert({
             id: principalId,
-            user_id: principalId,
+            user_id: principalAuthId,
             school_id: schoolData.id,
             name: `${newSchool.name} Principal`,
-            email: sanitizedPhone,
+            email: principalEmail,
             phone: sanitizedPhone,
             password: creds.pass,
+            must_change_password: true,
             role: 'principal'
           });
 
-          // 2. Create Teacher Auth Account
-          const teacherEmail = `staff_${sanitizedPhone}@boraschool.ke`;
+          if (pError) console.error('Principal Profile Error:', pError);
+
+          // 2. Create Teacher Auth Account (using Email to avoid phone conflict)
+          const teacherEmail = `s${sanitizedPhone}@boraschool.ke`;
           const { data: tAuthData, error: tAuthError } = await secondaryClient.auth.signUp({
             email: teacherEmail,
             password: creds.pass
@@ -396,22 +425,27 @@ export const SuperAdminDashboard = () => {
           }
 
           let teacherId = tAuthData.user?.id;
+          let teacherAuthId = tAuthData.user?.id;
           if (!teacherId) {
-            const { data: existingT } = await supabase.from('profiles').select('id').eq('email', teacherEmail).eq('role', 'teacher').maybeSingle();
+            const { data: existingT } = await supabase.from('profiles').select('id, user_id').eq('email', teacherEmail).eq('role', 'teacher').maybeSingle();
             teacherId = existingT?.id || crypto.randomUUID();
+            teacherAuthId = existingT?.user_id || null;
           }
 
           // Create default teacher profile
           const { error: tError } = await supabase.from('profiles').upsert({
             id: teacherId,
-            user_id: teacherId,
+            user_id: teacherAuthId,
             school_id: schoolData.id,
             name: `${newSchool.name} Staff`,
             email: teacherEmail,
-            phone: sanitizedPhone,
+            phone: null, // Avoid conflict with principal's phone
             password: creds.pass,
+            must_change_password: true,
             role: 'teacher'
           });
+
+          if (tError) console.error('Teacher Profile Error:', tError);
 
           if (pError || tError) {
             console.error('Error creating profiles:', pError || tError);
@@ -484,31 +518,47 @@ export const SuperAdminDashboard = () => {
     navigate('/super-admin');
   };
 
-  const toggleSchoolStatus = (id: string) => {
-    setSchools(schools.map(school => {
-      if (school.id === id) {
-        const nextStatus = school.status === 'Active' ? 'Suspended' : 'Active';
-        
-        addNotification({
-          title: `School ${nextStatus}`,
-          message: `${school.name} status has been changed to ${nextStatus}.`,
-          type: nextStatus === 'Active' ? 'success' : 'warning',
-          role: 'super-admin'
-        });
+  const toggleSchoolStatus = async (id: string) => {
+    const school = schools.find(s => s.id === id);
+    if (!school) return;
 
-        // Also notify the principal
-        addNotification({
-          title: `Account ${nextStatus}`,
-          message: `Your school account has been ${nextStatus.toLowerCase()} by the system administrator.`,
-          type: nextStatus === 'Active' ? 'success' : 'error',
-          role: 'principal',
-          userId: school.id // Using school.id as userId for principal for now
-        });
+    const nextStatus = school.status === 'Active' ? 'Suspended' : 'Active';
+    
+    try {
+      await supabaseService.updateSchoolStatus(id, nextStatus);
+      
+      setSchools(schools.map(s => {
+        if (s.id === id) {
+          addNotification({
+            title: `School ${nextStatus}`,
+            message: `${s.name} status has been changed to ${nextStatus}.`,
+            type: nextStatus === 'Active' ? 'success' : 'warning',
+            role: 'super-admin'
+          });
 
-        return { ...school, status: nextStatus as any };
-      }
-      return school;
-    }));
+          // Also notify the principal
+          addNotification({
+            title: `Account ${nextStatus}`,
+            message: `Your school account has been ${nextStatus.toLowerCase()} by the system administrator.`,
+            type: nextStatus === 'Active' ? 'success' : 'error',
+            role: 'principal',
+            userId: s.id
+          });
+
+          return { ...s, status: nextStatus as any };
+        }
+        return s;
+      }));
+
+      // Update local storage for demo consistency
+      const allSchools = JSON.parse(localStorage.getItem('alakara_schools') || '[]');
+      const updatedSchools = allSchools.map((s: any) => s.id === id ? { ...s, status: nextStatus } : s);
+      localStorage.setItem('alakara_schools', JSON.stringify(updatedSchools));
+
+    } catch (error) {
+      console.error('Error updating school status:', error);
+      alert('Failed to update school status in database.');
+    }
   };
 
   const handleMaterialAction = async (id: string, action: 'Approved' | 'Rejected') => {
@@ -528,6 +578,50 @@ export const SuperAdminDashboard = () => {
       }));
     } catch (error) {
       console.error('Error updating material status:', error);
+    }
+  };
+
+  const handleUploadMaterial = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!uploadForm.file || !adminProfile) return;
+
+    setIsUploading(true);
+    try {
+      const fileUrl = await supabaseService.uploadExamMaterial(uploadForm.file);
+      const fileType = uploadForm.file.name.split('.').pop()?.toUpperCase() as any;
+
+      await supabaseService.createExamMaterial({
+        title: uploadForm.title,
+        subject: uploadForm.subject,
+        category: uploadForm.category,
+        description: uploadForm.description,
+        file_url: fileUrl,
+        file_type: fileType,
+        status: 'Approved',
+        visibility: 'Public',
+        teacher_id: adminProfile.id
+      });
+
+      addNotification({
+        title: 'Upload Successful',
+        message: 'Your educational resource has been uploaded and published.',
+        type: 'success',
+        role: 'super-admin'
+      });
+      
+      setShowUploadModal(false);
+      setUploadForm({ title: '', subject: '', category: 'Exam', description: '', file: null });
+      fetchAllData();
+    } catch (error) {
+      console.error('Upload error:', error);
+      addNotification({
+        title: 'Upload Failed',
+        message: 'Could not upload the educational resource.',
+        type: 'error',
+        role: 'super-admin'
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -559,13 +653,26 @@ export const SuperAdminDashboard = () => {
     }
   };
 
-  const updateSchoolExpiry = (id: string, date: string) => {
-    setSchools(schools.map(school => {
-      if (school.id === id) {
-        return { ...school, subscriptionExpiresAt: date };
-      }
-      return school;
-    }));
+  const updateSchoolExpiry = async (id: string, date: string) => {
+    try {
+      await supabaseService.updateSchoolSubscription(id, date);
+      
+      setSchools(schools.map(school => {
+        if (school.id === id) {
+          return { ...school, subscriptionExpiresAt: date };
+        }
+        return school;
+      }));
+
+      // Update local storage for demo consistency
+      const allSchools = JSON.parse(localStorage.getItem('alakara_schools') || '[]');
+      const updatedSchools = allSchools.map((s: any) => s.id === id ? { ...s, subscriptionExpiresAt: date } : s);
+      localStorage.setItem('alakara_schools', JSON.stringify(updatedSchools));
+
+    } catch (error) {
+      console.error('Error updating school subscription:', error);
+      alert('Failed to update subscription in database.');
+    }
   };
 
   const filteredSchools = schools.filter(school => {
@@ -597,6 +704,120 @@ export const SuperAdminDashboard = () => {
     { name: 'Pending', value: 10, color: '#FFD700' },
     { name: 'Suspended', value: 5, color: '#BB1924' },
   ];
+
+  const fetchAllData = async () => {
+    try {
+      // 1. Fetch Schools and Student Counts
+      const schoolsData = await supabaseService.getAllSchools();
+      const studentCounts = await supabaseService.getStudentCountsBySchool();
+      
+      if (schoolsData) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('school_id, phone, email')
+          .eq('role', 'principal');
+
+        const mappedSchools: School[] = schoolsData.map((s: any) => {
+          const principalProfile = profiles?.find(p => p.school_id === s.id);
+          return {
+            id: s.id,
+            name: s.name,
+            location: s.location || '',
+            county: s.county || '',
+            subCounty: s.sub_county || '',
+            type: s.type || 'Secondary',
+            students: (studentCounts[s.id] || 0).toString(),
+            status: s.status || 'Active',
+            date: new Date(s.created_at).toLocaleDateString(),
+            principalPhone: principalProfile?.phone || 'N/A',
+            principalPass: '********',
+            teacherEmail: principalProfile?.phone || 'N/A',
+            teacherPass: '********',
+            subscriptionExpiresAt: s.subscription_expires_at
+          };
+        });
+        setSchools(mappedSchools);
+      }
+
+      // 2. Fetch Exam Materials
+      const materialsData = await supabaseService.getExamMaterials();
+      if (materialsData) {
+        setExamMaterials(materialsData.map((m: any) => ({
+          id: m.id,
+          title: m.title,
+          subject: m.subject,
+          description: m.description,
+          schoolName: m.schools?.name || 'System',
+          teacherName: m.profiles?.name || 'Super Admin',
+          uploadDate: new Date(m.created_at).toLocaleDateString(),
+          status: m.status as any,
+          fileType: m.file_type as any || 'PDF',
+          visibility: m.visibility as any,
+          fileUrl: m.file_url
+        })));
+      }
+
+      // 3. Fetch Success Stories
+      const storiesData = await supabaseService.getSuccessStories();
+      if (storiesData) {
+        setSuccessStories(storiesData.map((s: any) => ({
+          id: s.id,
+          name: s.author_name,
+          role: s.title,
+          content: s.content,
+          image: s.image_url || `https://picsum.photos/seed/${s.author_name}/100/100`
+        })));
+      }
+
+      // 4. Fetch All Users (Visibility for Super Admin)
+      const { data: allProfiles } = await supabase
+        .from('profiles')
+        .select('*, schools(name)');
+      
+      const { data: allStudents } = await supabase
+        .from('students')
+        .select('*, schools(name)');
+      
+      const combinedUsers = [
+        ...(allProfiles || []).map(p => ({ 
+          id: p.id, 
+          name: p.name, 
+          email: p.email, 
+          phone: p.phone, 
+          role: p.role, 
+          type: 'Staff', 
+          schoolName: p.schools?.name || 'N/A',
+          createdAt: p.created_at 
+        })),
+        ...(allStudents || []).map(s => ({ 
+          id: s.id, 
+          name: s.name, 
+          email: s.admission_number || s.adm, 
+          phone: 'N/A', 
+          role: 'Student', 
+          type: 'Student', 
+          schoolName: s.schools?.name || 'N/A',
+          createdAt: s.created_at 
+        }))
+      ];
+      setUsers(combinedUsers);
+    } catch (err) {
+      console.error('Error loading super admin data:', err);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-kenya-green animate-spin mx-auto mb-4" />
+          <p className="text-gray-500 font-medium italic">Verifying super admin session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!adminProfile) return null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex relative">
@@ -645,10 +866,13 @@ export const SuperAdminDashboard = () => {
             <SchoolIcon className="w-5 h-5" />
             Schools
           </button>
-          <a href="#" className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl transition-colors">
+          <button 
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl font-medium transition-all ${activeTab === 'users' ? 'bg-kenya-green/10 text-kenya-green' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
             <Users className="w-5 h-5" />
             Users
-          </a>
+          </button>
           <button 
             onClick={() => setActiveTab('exams')}
             className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl font-medium transition-all ${activeTab === 'exams' ? 'bg-kenya-green/10 text-kenya-green' : 'text-gray-600 hover:bg-gray-50'}`}
@@ -677,6 +901,17 @@ export const SuperAdminDashboard = () => {
         </nav>
 
         <div className="p-4 border-t border-gray-100">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 px-4">Quick Actions</p>
+          <button 
+            onClick={() => {
+              setActiveTab('exams');
+              setShowUploadModal(true);
+            }}
+            className="flex items-center gap-3 px-4 py-3 w-full bg-kenya-green text-white rounded-xl font-bold shadow-lg shadow-kenya-green/20 hover:bg-green-700 transition-all active:scale-95 mb-4"
+          >
+            <Plus className="w-5 h-5" />
+            Upload Resource
+          </button>
           <button 
             onClick={handleLogout}
             className="flex items-center gap-3 px-4 py-3 w-full text-gray-600 hover:text-kenya-red hover:bg-kenya-red/5 rounded-xl transition-colors"
@@ -1088,6 +1323,10 @@ export const SuperAdminDashboard = () => {
                   <h1 className="text-2xl font-bold text-kenya-black">Exam Materials Review</h1>
                   <p className="text-gray-500">Approve or reject educational materials uploaded by teachers.</p>
                 </div>
+                <Button onClick={() => setShowUploadModal(true)} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Upload Resource
+                </Button>
               </div>
 
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -1113,7 +1352,12 @@ export const SuperAdminDashboard = () => {
                               </div>
                               <div>
                                 <p className="font-bold text-kenya-black">{material.title}</p>
-                                <p className="text-xs text-gray-500">{material.subject} • {material.fileType}</p>
+                                <p className="text-xs text-gray-500">{material.category} • {material.subject} • {material.fileType}</p>
+                                {material.description && (
+                                  <p className="text-[10px] text-gray-400 mt-1 max-w-xs truncate" title={material.description}>
+                                    {material.description}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -1140,6 +1384,17 @@ export const SuperAdminDashboard = () => {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
+                              {material.fileUrl && (
+                                <a 
+                                  href={material.fileUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Download / View"
+                                >
+                                  <BookOpen className="w-4 h-4" />
+                                </a>
+                              )}
                               {material.status === 'Pending' && (
                                 <>
                                   <button 
@@ -1179,6 +1434,25 @@ export const SuperAdminDashboard = () => {
                           </td>
                         </tr>
                       ))}
+                      {examMaterials.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-20 text-center">
+                            <div className="flex flex-col items-center gap-4">
+                              <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center text-gray-300">
+                                <BookOpen className="w-8 h-8" />
+                              </div>
+                              <div>
+                                <p className="text-gray-500 font-medium">No materials found</p>
+                                <p className="text-sm text-gray-400">Start by uploading educational resources for schools.</p>
+                              </div>
+                              <Button onClick={() => setShowUploadModal(true)} variant="outline" size="sm" className="mt-2">
+                                <Plus className="w-4 h-4 mr-2" />
+                                Upload First Resource
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1228,6 +1502,89 @@ export const SuperAdminDashboard = () => {
                     </p>
                   </motion.div>
                 ))}
+              </div>
+            </div>
+          ) : activeTab === 'users' ? (
+            <div className="space-y-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold text-kenya-black">User Management</h1>
+                  <p className="text-gray-500">Overview of all registered staff and students across all schools.</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input 
+                      type="text"
+                      placeholder="Search users..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 w-64"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">User</th>
+                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Role/Type</th>
+                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Institution</th>
+                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Contact</th>
+                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Joined</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {users
+                        .filter(u => 
+                          u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          u.schoolName?.toLowerCase().includes(searchQuery.toLowerCase())
+                        )
+                        .map((user) => (
+                        <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-kenya-green/10 flex items-center justify-center text-kenya-green font-bold text-xs">
+                                {user.name.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="font-bold text-kenya-black">{user.name}</p>
+                                <p className="text-xs text-gray-500">{user.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${
+                              user.type === 'Staff' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
+                            }`}>
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm text-gray-600">{user.schoolName}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm text-gray-600">{user.phone || 'N/A'}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm text-gray-600">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</p>
+                          </td>
+                        </tr>
+                      ))}
+                      {users.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                            No users found in the system.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           ) : (
@@ -1450,7 +1807,7 @@ export const SuperAdminDashboard = () => {
                         <Check className="w-6 h-6" />
                       </div>
                       <h4 className="text-lg font-bold text-kenya-green mb-1">Registration Successful!</h4>
-                      <p className="text-sm text-gray-600">Login details have been generated with the @bora.ke extension.</p>
+                      <p className="text-sm text-gray-600">Login details have been generated using the provided phone number.</p>
                     </div>
 
                     <div className="space-y-4">
@@ -1536,6 +1893,96 @@ export const SuperAdminDashboard = () => {
                     />
                   </div>
                   <Button type="submit" className="w-full py-4">Publish Story</Button>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showUploadModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                <h3 className="text-xl font-bold text-kenya-black">Upload Educational Resource</h3>
+                <button onClick={() => setShowUploadModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-8">
+                <form onSubmit={handleUploadMaterial} className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Resource Title</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={uploadForm.title}
+                      onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 focus:border-kenya-green"
+                      placeholder="e.g. KCSE 2023 Mathematics Revision"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Subject</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={uploadForm.subject}
+                        onChange={(e) => setUploadForm({ ...uploadForm, subject: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 focus:border-kenya-green"
+                        placeholder="e.g. Mathematics"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Category</label>
+                      <select 
+                        value={uploadForm.category}
+                        onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 focus:border-kenya-green"
+                      >
+                        <option value="Exam">Exam</option>
+                        <option value="Revision Note">Revision Note</option>
+                        <option value="Assignment">Assignment</option>
+                        <option value="Syllabus">Syllabus</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">File Attachment</label>
+                    <input 
+                      type="file" 
+                      required
+                      onChange={(e) => setUploadForm({ ...uploadForm, file: e.target.files?.[0] || null })}
+                      className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-kenya-green/10 file:text-kenya-green hover:file:bg-kenya-green/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Short Description</label>
+                    <textarea 
+                      required
+                      rows={3}
+                      value={uploadForm.description}
+                      onChange={(e) => setUploadForm({ ...uploadForm, description: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 focus:border-kenya-green resize-none"
+                      placeholder="Briefly describe what this resource contains..."
+                    />
+                  </div>
+                  <Button type="submit" className="w-full py-4" disabled={isUploading}>
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Uploading...
+                      </>
+                    ) : (
+                      'Publish Resource'
+                    )}
+                  </Button>
                 </form>
               </div>
             </motion.div>

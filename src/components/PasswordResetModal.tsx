@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Mail, Lock, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { X, Mail, Lock, CheckCircle2, AlertCircle, Phone } from 'lucide-react';
 import { Button } from './Button';
+import { supabase } from '../lib/supabase';
 
 interface PasswordResetModalProps {
   isOpen: boolean;
@@ -16,39 +17,81 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [targetProfileId, setTargetProfileId] = useState<string | null>(null);
 
-  const handleIdentify = (e: React.FormEvent) => {
+  const handleIdentify = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    setTimeout(() => {
-      let found = false;
-      if (role === 'student') {
-        const students = JSON.parse(localStorage.getItem('alakara_students') || '[]');
-        found = students.some((s: any) => s.adm === identifier);
-        if (identifier === 'student') found = true;
-      } else if (role === 'teacher') {
-        const staff = JSON.parse(localStorage.getItem('alakara_staff') || '[]');
-        found = staff.some((s: any) => s.username === identifier || s.email === identifier);
-        if (identifier === 'teacher' || identifier === 'teacher@bora.ke') found = true;
-      } else if (role === 'principal') {
-        const schools = JSON.parse(localStorage.getItem('alakara_schools') || '[]');
-        found = schools.some((s: any) => s.principalEmail === identifier);
-      } else if (role === 'super-admin') {
-        found = identifier === 'admin';
-      }
+    try {
+      const sanitizedInput = identifier.trim();
+      const cleanPhone = sanitizedInput.replace(/\s+/g, '');
+      
+      let query = supabase.from('profiles').select('id, role').eq('role', role);
 
-      if (found) {
-        setStep(2);
+      if (role === 'student') {
+        // Students might use ADM or email/phone
+        const { data: studentProfile, error: studentError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'student')
+          .or(`email.eq.${sanitizedInput},phone.eq.${cleanPhone}`)
+          .maybeSingle();
+
+        if (studentProfile) {
+          setTargetProfileId(studentProfile.id);
+          setStep(2);
+        } else {
+          // Try searching students table by ADM
+          const { data: studentByAdm, error: admError } = await supabase
+            .from('students')
+            .select('id')
+            .eq('adm', sanitizedInput)
+            .maybeSingle();
+
+          if (studentByAdm) {
+            // Find the profile for this student
+            const { data: profileByStudent, error: profileError } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('student_id', studentByAdm.id)
+              .maybeSingle();
+
+            if (profileByStudent) {
+              setTargetProfileId(profileByStudent.id);
+              setStep(2);
+            } else {
+              setError('Student profile not found. Please contact your administrator.');
+            }
+          } else {
+            setError('Account with this Admission Number not found.');
+          }
+        }
       } else {
-        setError(`Account with this ${role === 'student' ? 'Admission Number' : 'Email/ID'} not found.`);
+        // For other roles, search by email or phone
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', role)
+          .or(`email.eq.${sanitizedInput},phone.eq.${cleanPhone}`)
+          .maybeSingle();
+
+        if (profile) {
+          setTargetProfileId(profile.id);
+          setStep(2);
+        } else {
+          setError(`Account with this ${role === 'super-admin' ? 'Operator ID' : 'Phone/Email'} not found.`);
+        }
       }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during verification.');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
-  const handleReset = (e: React.FormEvent) => {
+  const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match');
@@ -59,26 +102,45 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
       return;
     }
 
+    if (!targetProfileId) {
+      setError('Session expired. Please start over.');
+      setStep(1);
+      return;
+    }
+
     setIsLoading(true);
-    setTimeout(() => {
-      if (role === 'student') {
-        const students = JSON.parse(localStorage.getItem('alakara_students') || '[]');
-        const updated = students.map((s: any) => s.adm === identifier ? { ...s, password: newPassword } : s);
-        localStorage.setItem('alakara_students', JSON.stringify(updated));
-      } else if (role === 'teacher') {
-        const staff = JSON.parse(localStorage.getItem('alakara_staff') || '[]');
-        const updated = staff.map((s: any) => (s.username === identifier || s.email === identifier) ? { ...s, password: newPassword } : s);
-        localStorage.setItem('alakara_staff', JSON.stringify(updated));
-      } else if (role === 'principal') {
-        const schools = JSON.parse(localStorage.getItem('alakara_schools') || '[]');
-        const updated = schools.map((s: any) => s.principalEmail === identifier ? { ...s, principalPass: newPassword } : s);
-        localStorage.setItem('alakara_schools', JSON.stringify(updated));
+    try {
+      // Update the password in the profiles table
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          password: newPassword,
+          must_change_password: false 
+        })
+        .eq('id', targetProfileId);
+
+      if (updateError) throw updateError;
+
+      // If it's a student, also update the students table password for legacy support
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('student_id')
+        .eq('id', targetProfileId)
+        .single();
+
+      if (profile?.student_id) {
+        await supabase
+          .from('students')
+          .update({ password: newPassword })
+          .eq('id', profile.student_id);
       }
-      // Super admin is hardcoded in this demo, so we don't persist it to localStorage in a real way here
       
       setStep(3);
+    } catch (err: any) {
+      setError(err.message || 'Failed to reset password.');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const resetState = () => {
@@ -87,6 +149,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
     setNewPassword('');
     setConfirmPassword('');
     setError('');
+    setTargetProfileId(null);
   };
 
   const handleClose = () => {
@@ -115,7 +178,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
               <div className="space-y-6">
                 <div className="text-center">
                   <div className="w-16 h-16 bg-kenya-green/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Mail className="w-8 h-8 text-kenya-green" />
+                    {role === 'student' ? <Mail className="w-8 h-8 text-kenya-green" /> : <Phone className="w-8 h-8 text-kenya-green" />}
                   </div>
                   <h3 className="text-2xl font-bold text-kenya-black">Reset Password</h3>
                   <p className="text-sm text-gray-500 mt-2">Enter your account identifier to continue.</p>
@@ -130,7 +193,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
                   )}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-kenya-black uppercase ml-1">
-                      {role === 'student' ? 'Admission Number' : 'Email or Username'}
+                      {role === 'student' ? 'Admission Number' : role === 'super-admin' ? 'Operator ID' : 'Phone Number'}
                     </label>
                     <input
                       type="text"
@@ -138,7 +201,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
-                      placeholder={role === 'student' ? 'e.g. ADM-2024-001' : 'e.g. user@school.ac.ke'}
+                      placeholder={role === 'student' ? 'e.g. ADM-2024-001' : role === 'super-admin' ? 'e.g. admin' : 'e.g. 0712345678'}
                     />
                   </div>
                   <Button type="submit" className="w-full py-4 rounded-xl font-bold" disabled={isLoading}>

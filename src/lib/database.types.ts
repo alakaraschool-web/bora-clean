@@ -20,6 +20,7 @@ export interface Database {
           avatar_url: string | null
           school_id: string | null
           student_id: string | null
+          must_change_password: boolean
           password: string | null
           assignments: Json | null
           created_at: string
@@ -34,6 +35,7 @@ export interface Database {
           avatar_url?: string | null
           school_id?: string | null
           student_id?: string | null
+          must_change_password?: boolean
           password?: string | null
           assignments?: Json | null
           created_at?: string
@@ -48,6 +50,7 @@ export interface Database {
           avatar_url?: string | null
           school_id?: string | null
           student_id?: string | null
+          must_change_password?: boolean
           password?: string | null
           assignments?: Json | null
           created_at?: string

@@ -65,18 +65,22 @@ export const SchoolRegistration = () => {
     setIsLoading(true);
     setError('');
 
-    try {
-      // Generate a dummy email for Supabase Auth using principalPhone
-      // Using a simpler internal extension
-      const sanitizedPhone = formData.principalPhone.replace(/\s+/g, '');
-      // Ensure E.164 format for Supabase Auth
-      const authPhone = sanitizedPhone.startsWith('+') ? sanitizedPhone : 
-                        sanitizedPhone.startsWith('0') ? `+254${sanitizedPhone.substring(1)}` : 
-                        `+${sanitizedPhone}`;
+    const sanitizedPhone = formData.principalPhone.replace(/\s+/g, '');
+    const isValidPhone = /^(254\d{9}|07\d{8}|01\d{8})$/.test(sanitizedPhone);
 
-      // 1. Sign up user in Supabase Auth using phone
+    if (!isValidPhone) {
+      setError('Phone number must start with 254, 07, or 01 and be of valid length');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const sanitizedPhone = formData.principalPhone.replace(/\s+/g, '');
+      const principalEmail = `p${sanitizedPhone}@boraschool.ke`;
+
+      // 1. Sign up user in Supabase Auth using email (more reliable than phone in many setups)
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        phone: authPhone,
+        email: principalEmail,
         password: formData.password,
         options: {
           data: {
@@ -86,7 +90,10 @@ export const SchoolRegistration = () => {
         }
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error('Full Auth Error:', authError);
+        throw authError;
+      }
       if (!authData.user) throw new Error('Registration failed');
 
       // 2. Create School in Supabase
@@ -112,14 +119,17 @@ export const SchoolRegistration = () => {
           id: authData.user.id,
           user_id: authData.user.id,
           name: formData.principalName,
-          email: sanitizedPhone, // Use phone as the identifier in email column
+          email: principalEmail,
           phone: sanitizedPhone,
           role: 'principal',
           school_id: schoolData.id,
           password: formData.password
         });
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Profile Creation Error:', profileError);
+        throw profileError;
+      }
 
       // Fallback for prototype/legacy
       const savedSchools = localStorage.getItem('alakara_schools');

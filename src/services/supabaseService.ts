@@ -179,6 +179,24 @@ export const supabaseService = {
     return data;
   },
 
+  async updateSchoolStatus(id: string, status: string) {
+    const { data, error } = await supabase
+      .from('schools')
+      .update({ status })
+      .eq('id', id);
+    if (error) throw error;
+    return data;
+  },
+
+  async updateSchoolSubscription(id: string, expiryDate: string) {
+    const { data, error } = await supabase
+      .from('schools')
+      .update({ subscription_expires_at: expiryDate })
+      .eq('id', id);
+    if (error) throw error;
+    return data;
+  },
+
   async getStudentCountsBySchool() {
     const { data, error } = await supabase
       .from('students')
@@ -196,7 +214,7 @@ export const supabaseService = {
   async getExamMaterials() {
     const { data, error } = await supabase
       .from('exam_materials')
-      .select('*, schools(name)');
+      .select('*, schools(name), profiles(name)');
     if (error) throw error;
     return data;
   },
@@ -225,6 +243,34 @@ export const supabaseService = {
       .delete()
       .eq('id', id);
     if (error) throw error;
+  },
+
+  async createExamMaterial(material: any) {
+    const { data, error } = await supabase
+      .from('exam_materials')
+      .insert(material)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async uploadExamMaterial(file: File) {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `materials/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('materials')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('materials')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
   },
 
   // Success Stories

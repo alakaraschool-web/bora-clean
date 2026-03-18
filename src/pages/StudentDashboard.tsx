@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   Menu,
   X,
-  Loader2
+  Loader2,
+  ShieldAlert
 } from 'lucide-react';
 import { NotificationBell } from '../components/NotificationBell';
 import { useNavigate } from 'react-router-dom';
@@ -34,6 +35,7 @@ export const StudentDashboard = () => {
     const saved = localStorage.getItem('alakara_current_student');
     return saved ? JSON.parse(saved) : null;
   });
+  const [isSuspended, setIsSuspended] = useState(false);
 
   useEffect(() => {
     const fetchStudentData = async () => {
@@ -77,6 +79,26 @@ export const StudentDashboard = () => {
     };
     fetchStudentData();
   }, [navigate]);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      if (!currentStudent?.school_id) return;
+      
+      const allSchools = JSON.parse(localStorage.getItem('alakara_schools') || '[]');
+      const school = allSchools.find((s: any) => s.id === currentStudent.school_id);
+      
+      if (school) {
+        const expiryDate = school.subscriptionExpiresAt ? new Date(school.subscriptionExpiresAt) : null;
+        const now = new Date();
+        const isExpired = expiryDate ? expiryDate < now : false;
+        setIsSuspended(school.status === 'Suspended' || isExpired);
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, [currentStudent?.school_id]);
 
   if (!currentStudent) {
     return (
@@ -188,28 +210,32 @@ export const StudentDashboard = () => {
           <nav className="space-y-4">
             <button 
               onClick={() => { setActiveTab('learning'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-4 px-6 py-4 font-black uppercase tracking-widest transition-all ${activeTab === 'learning' ? 'bg-white text-black shadow-[8px_8px_0px_0px_rgba(0,255,0,1)]' : 'text-white hover:bg-white/10'}`}
+              className={`w-full flex items-center gap-4 px-6 py-4 font-black uppercase tracking-widest transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'learning' ? 'bg-white text-black shadow-[8px_8px_0px_0px_rgba(0,255,0,1)]' : 'text-white hover:bg-white/10'}`}
+              disabled={isSuspended}
             >
               <LayoutDashboard className="w-6 h-6" />
               My Learning
             </button>
             <button 
               onClick={() => { setActiveTab('materials'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-4 px-6 py-4 font-black uppercase tracking-widest transition-all ${activeTab === 'materials' ? 'bg-white text-black shadow-[8px_8px_0px_0px_rgba(0,255,0,1)]' : 'text-white hover:bg-white/10'}`}
+              className={`w-full flex items-center gap-4 px-6 py-4 font-black uppercase tracking-widest transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'materials' ? 'bg-white text-black shadow-[8px_8px_0px_0px_rgba(0,255,0,1)]' : 'text-white hover:bg-white/10'}`}
+              disabled={isSuspended}
             >
               <FileText className="w-6 h-6" />
               Approved Materials
             </button>
             <button 
               onClick={() => { setActiveTab('exams'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-4 px-6 py-4 font-black uppercase tracking-widest transition-all ${activeTab === 'exams' ? 'bg-white text-black shadow-[8px_8px_0px_0px_rgba(0,255,0,1)]' : 'text-white hover:bg-white/10'}`}
+              className={`w-full flex items-center gap-4 px-6 py-4 font-black uppercase tracking-widest transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'exams' ? 'bg-white text-black shadow-[8px_8px_0px_0px_rgba(0,255,0,1)]' : 'text-white hover:bg-white/10'}`}
+              disabled={isSuspended}
             >
               <BookOpen className="w-6 h-6" />
               Exams
             </button>
             <button 
               onClick={() => { setActiveTab('results'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-4 px-6 py-4 font-black uppercase tracking-widest transition-all ${activeTab === 'results' ? 'bg-white text-black shadow-[8px_8px_0px_0px_rgba(0,255,0,1)]' : 'text-white hover:bg-white/10'}`}
+              className={`w-full flex items-center gap-4 px-6 py-4 font-black uppercase tracking-widest transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'results' ? 'bg-white text-black shadow-[8px_8px_0px_0px_rgba(0,255,0,1)]' : 'text-white hover:bg-white/10'}`}
+              disabled={isSuspended}
             >
               <Star className="w-6 h-6" />
               Results
@@ -229,7 +255,23 @@ export const StudentDashboard = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white border-l-8 border-black">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white border-l-8 border-black relative">
+        {isSuspended && (
+          <div className="absolute inset-0 z-[60] bg-white/80 backdrop-blur-md flex items-center justify-center p-8">
+            <div className="max-w-md w-full bg-white border-8 border-black p-10 shadow-[16px_16px_0px_0px_rgba(255,99,33,1)] text-center">
+              <div className="w-20 h-20 bg-[#FF6321]/10 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-black">
+                <ShieldAlert className="w-10 h-10 text-black" />
+              </div>
+              <h2 className="text-3xl font-black text-black uppercase tracking-tighter mb-4 italic">School Suspended</h2>
+              <p className="text-gray-600 font-bold uppercase text-sm leading-relaxed mb-8">
+                Access to this school's portal has been suspended by the super admin or the subscription has expired. Please contact support for more information.
+              </p>
+              <div className="h-4 w-full bg-black/10 border-2 border-black overflow-hidden">
+                <div className="h-full bg-[#FF6321] animate-pulse" style={{ width: '100%' }} />
+              </div>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <header className="h-24 bg-white border-b-8 border-black flex items-center justify-between px-4 lg:px-10 shrink-0">
           <div className="flex items-center gap-4 lg:gap-6 flex-1">
@@ -254,8 +296,8 @@ export const StudentDashboard = () => {
           <div className="flex items-center gap-6 ml-10">
             <NotificationBell role="student" userId={currentStudent.id} />
             <div className="text-right">
-              <p className="text-sm font-black text-black uppercase tracking-widest">Student Portal</p>
-              <p className="text-xs font-bold text-gray-500 uppercase">ADM-2024-001</p>
+              <p className="text-sm font-black text-black uppercase tracking-widest">{currentStudent?.name || 'Student Portal'}</p>
+              <p className="text-xs font-bold text-gray-500 uppercase">{currentStudent?.admission_number || currentStudent?.adm || 'ADM-2024-001'}</p>
             </div>
             <div className="w-14 h-14 bg-[#FF6321] border-4 border-black flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <GraduationCap className="w-8 h-8 text-white" />

@@ -30,7 +30,8 @@ import {
   Edit3,
   Printer,
   Library,
-  Loader2
+  Loader2,
+  ShieldAlert
 } from 'lucide-react';
 import { NotificationBell, addNotification } from '../components/NotificationBell';
 import { useNavigate } from 'react-router-dom';
@@ -103,43 +104,124 @@ export const TeacherDashboard = () => {
     const saved = localStorage.getItem('alakara_current_teacher');
     return saved ? JSON.parse(saved) : null;
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSuspended, setIsSuspended] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchTeacherData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      let profileId = session?.user.id;
-      let profileEmail = session?.user.email;
-
-      // Fallback: Check localStorage if no session
-      if (!profileId && currentTeacher) {
-        profileId = currentTeacher.id;
-        profileEmail = currentTeacher.email;
-      }
-
-      if (profileId || profileEmail) {
-        const query = supabase.from('profiles').select('*');
-        if (profileId && !profileId.startsWith('demo-')) {
-          query.eq('id', profileId);
-        } else if (profileEmail) {
-          query.eq('email', profileEmail).eq('role', 'teacher');
-        } else {
-          // If it's a demo teacher and no email, just keep currentTeacher
-          return;
-        }
-
-        const { data: profile } = await query.single();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (profile) {
-          setCurrentTeacher(profile);
-          localStorage.setItem('alakara_current_teacher', JSON.stringify(profile));
+        if (!isMounted) return;
+
+        let profileId = session?.user.id;
+        let profileEmail = session?.user.email;
+
+        // Fallback: Check localStorage if no session
+        if (!profileId) {
+          const savedTeacher = localStorage.getItem('alakara_current_teacher');
+          if (savedTeacher) {
+            const teacherObj = JSON.parse(savedTeacher);
+            profileId = teacherObj.id;
+            profileEmail = teacherObj.email;
+          }
         }
-      } else if (!currentTeacher) {
-        // If no session and no local storage, redirect to login
-        navigate('/teacher-login');
+
+        if (profileId || profileEmail) {
+          const query = supabase.from('profiles').select('*');
+          if (profileId && !profileId.startsWith('demo-')) {
+            query.eq('id', profileId);
+          } else if (profileEmail) {
+            query.eq('email', profileEmail).eq('role', 'teacher');
+          } else {
+            // If it's a demo teacher and no email, just keep currentTeacher if we have it
+            if (currentTeacher && isMounted) {
+              setIsLoading(false);
+            }
+            return;
+          }
+
+          const { data: profile } = await query.single();
+          
+          if (profile && isMounted) {
+            setCurrentTeacher(profile);
+            localStorage.setItem('alakara_current_teacher', JSON.stringify(profile));
+          } else if (!profile && isMounted) {
+            // If no profile found but we have one in localStorage, use it as fallback
+            const savedTeacher = localStorage.getItem('alakara_current_teacher');
+            if (savedTeacher) {
+              setCurrentTeacher(JSON.parse(savedTeacher));
+            } else {
+              navigate('/teacher-login');
+            }
+          }
+        } else if (isMounted) {
+          navigate('/teacher-login');
+        }
+      } catch (error) {
+        console.error('Teacher auth error:', error);
+        // Fallback to localStorage on error
+        const savedTeacher = localStorage.getItem('alakara_current_teacher');
+        if (savedTeacher && isMounted) {
+          setCurrentTeacher(JSON.parse(savedTeacher));
+        } else if (isMounted) {
+          navigate('/teacher-login');
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('alakara_current_teacher');
+        navigate('/teacher-login');
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session) fetchTeacherData();
+      }
+    });
+
     fetchTeacherData();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [navigate]);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      if (!currentTeacher?.school_id) return;
+      
+      const allSchools = JSON.parse(localStorage.getItem('alakara_schools') || '[]');
+      const school = allSchools.find((s: any) => s.id === currentTeacher.school_id);
+      
+      if (school) {
+        const expiryDate = school.subscriptionExpiresAt ? new Date(school.subscriptionExpiresAt) : null;
+        const now = new Date();
+        const isExpired = expiryDate ? expiryDate < now : false;
+        setIsSuspended(school.status === 'Suspended' || isExpired);
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, [currentTeacher?.school_id]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-kenya-green animate-spin mx-auto mb-4" />
+          <p className="text-gray-500 font-medium italic">Verifying teacher session...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentTeacher) {
     return (
@@ -188,10 +270,21 @@ export const TeacherDashboard = () => {
           })));
         }
 
-        // Fetch Marks for all exams
-        const { data: marksData } = await supabase
-          .from('marks')
-          .select('*');
+        // Fetch Marks for all exams in this school
+        const { data: examsForMarks } = await supabase
+          .from('exams')
+          .select('id')
+          .eq('school_id', currentTeacher.school_id);
+        
+        let marksData = null;
+        if (examsForMarks && examsForMarks.length > 0) {
+          const examIds = examsForMarks.map(e => e.id);
+          const { data } = await supabase
+            .from('marks')
+            .select('*')
+            .in('exam_id', examIds);
+          marksData = data;
+        }
         if (marksData) {
           setMarks(marksData.map(m => ({
             id: m.id,
@@ -352,12 +445,18 @@ export const TeacherDashboard = () => {
 
       try {
         // Fetch from Supabase
-        const [examsData, studentsData, classesData, marksData] = await Promise.all([
+        const [examsData, studentsData, classesData] = await Promise.all([
           supabaseService.getExams(schoolId),
           supabaseService.getStudents(schoolId),
-          supabase.from('classes').select('*').eq('school_id', schoolId),
-          supabase.from('marks').select('*')
+          supabase.from('classes').select('*').eq('school_id', schoolId)
         ]);
+
+        let marksData: { data: any[] | null } = { data: [] };
+        if (examsData && examsData.length > 0) {
+          const examIds = examsData.map(e => e.id);
+          const { data } = await supabase.from('marks').select('*').in('exam_id', examIds);
+          marksData = { data };
+        }
 
         if (examsData) setExams(examsData);
         if (studentsData) setAllStudents(studentsData);
@@ -859,21 +958,24 @@ export const TeacherDashboard = () => {
           <nav className="space-y-2">
             <button 
               onClick={() => { setActiveTab('exams'); setActiveExam(null); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'exams' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'exams' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+              disabled={isSuspended}
             >
               <BookOpen className="w-5 h-5" />
               Examinations
             </button>
             <button 
               onClick={() => { setActiveTab('analysis'); setActiveExam(null); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'analysis' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'analysis' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+              disabled={isSuspended}
             >
               <BarChart3 className="w-5 h-5" />
               Exam Analysis
             </button>
             <button 
               onClick={() => { setActiveTab('materials'); setActiveExam(null); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'materials' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'materials' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+              disabled={isSuspended}
             >
               <FileText className="w-5 h-5" />
               Materials
@@ -881,7 +983,8 @@ export const TeacherDashboard = () => {
             {teacherRole === 'Class Teacher' && (
               <button 
                 onClick={() => { setActiveTab('class-management'); setActiveExam(null); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'class-management' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'class-management' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+                disabled={isSuspended}
               >
                 <Users className="w-5 h-5" />
                 Class Management
@@ -909,7 +1012,23 @@ export const TeacherDashboard = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {isSuspended && (
+          <div className="absolute inset-0 z-[60] bg-white/80 backdrop-blur-md flex items-center justify-center p-8">
+            <div className="max-w-md w-full bg-white border-4 border-kenya-red p-10 shadow-[16px_16px_0px_0px_rgba(231,0,0,1)] text-center">
+              <div className="w-20 h-20 bg-kenya-red/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <ShieldAlert className="w-10 h-10 text-kenya-red" />
+              </div>
+              <h2 className="text-3xl font-black text-kenya-black uppercase tracking-tighter mb-4 italic">School Suspended</h2>
+              <p className="text-gray-600 font-bold uppercase text-sm leading-relaxed mb-8">
+                Access to this school's portal has been suspended by the super admin or the subscription has expired. Please contact support for more information.
+              </p>
+              <div className="h-2 w-full bg-kenya-red/20 rounded-full overflow-hidden">
+                <div className="h-full bg-kenya-red animate-pulse" style={{ width: '100%' }} />
+              </div>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-8 shrink-0">
           <div className="flex items-center gap-4">
@@ -927,8 +1046,8 @@ export const TeacherDashboard = () => {
           <div className="flex items-center gap-4">
             <NotificationBell role="teacher" userId={currentTeacher.id} />
             <div className="text-right">
-              <p className="text-sm font-bold text-kenya-black">Mr. Kamau</p>
-              <p className="text-xs text-gray-500">Mathematics Dept.</p>
+              <p className="text-sm font-bold text-kenya-black">{currentTeacher?.name || 'Teacher'}</p>
+              <p className="text-xs text-gray-500">{currentTeacher?.role || 'Staff'}</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-kenya-green/10 flex items-center justify-center overflow-hidden">
               {profilePhoto ? (
@@ -1702,7 +1821,7 @@ export const TeacherDashboard = () => {
                       <div className="space-y-4">
                         <div className="flex items-center justify-between py-2 border-b border-gray-50">
                           <span className="text-sm text-gray-500">Email</span>
-                          <span className="text-sm font-bold text-kenya-black">{currentTeacher.email || 'teacher@bora.ke'}</span>
+                          <span className="text-sm font-bold text-kenya-black">{currentTeacher.email || 'teacher@boraschool.ke'}</span>
                         </div>
                         <div className="flex items-center justify-between py-2 border-b border-gray-50">
                           <span className="text-sm text-gray-500">Employee ID</span>
@@ -1734,7 +1853,7 @@ export const TeacherDashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="p-4 border border-gray-100 rounded-xl">
                     <p className="text-xs text-gray-400 uppercase font-bold mb-1">Email Address / Username</p>
-                    <p className="font-bold text-kenya-black">{currentTeacher.username || currentTeacher.email || 'j.kamau@bora.ke'}</p>
+                    <p className="font-bold text-kenya-black">{currentTeacher.username || currentTeacher.email || 'j.kamau'}</p>
                   </div>
                   <div className="p-4 border border-gray-100 rounded-xl">
                     <p className="text-xs text-gray-400 uppercase font-bold mb-1">Staff ID</p>
