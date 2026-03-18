@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from 'react';
 import { motion } from 'motion/react';
 import { 
   GraduationCap, 
@@ -203,6 +203,18 @@ export const TeacherDashboard = () => {
   const [isLoadingResources, setIsLoadingResources] = useState(false);
   const [isFetchingStudents, setIsFetchingStudents] = useState(false);
   const [selectedRankingSubject, setSelectedRankingSubject] = useState('');
+
+  const managedClass = useMemo(() => 
+    classes.find(c => c.teacher_id === currentTeacher?.id || c.teacherId === currentTeacher?.id)?.name || '',
+    [classes, currentTeacher?.id]
+  );
+
+  const assignedClasses = useMemo(() => 
+    classes
+      .filter(c => c.teacher_id === currentTeacher?.id || c.teacherId === currentTeacher?.id)
+      .map(c => c.name),
+    [classes, currentTeacher?.id]
+  );
 
   useEffect(() => {
     if (currentTeacher?.avatar_url) {
@@ -451,9 +463,6 @@ export const TeacherDashboard = () => {
 
   const teacherRole = currentTeacher?.role || 'Teacher';
 
-  const managedClass = classes.find(c => c.teacher_id === currentTeacher?.id || c.teacherId === currentTeacher?.id)?.name || '';
-  const assignedClasses = classes.filter(c => c.teacher_id === currentTeacher?.id || c.teacherId === currentTeacher?.id);
-  
   const filteredStudents = allStudents.filter(s => {
     const className = classes.find(c => c.id === entryConfig.classId)?.name;
     const matchesClass = s.class?.trim() === className?.trim();
