@@ -554,7 +554,7 @@ export const PrincipalDashboard = () => {
             id: m.id || `${examId}-${m.studentId}-${m.subject}`,
             exam_id: examId,
             student_id: m.studentId,
-            subject_id: m.subject,
+            subject: m.subject,
             score: parseFloat(String(m.score)),
             created_at: new Date().toISOString()
           }));
@@ -1611,9 +1611,10 @@ export const PrincipalDashboard = () => {
       title: newExam.title,
       term: newExam.term,
       year: newExam.year,
-      class_id: newExam.classes[0] || null, // Use first class for now to match schema
-      subject_id: newExam.subjects[0] || null, // Use first subject for now to match schema
-      locked: false,
+      classes: newExam.classes,
+      subjects: newExam.subjects,
+      status: 'Active',
+      published: false,
       weighting: 100,
       school_id: school.id
     };
@@ -1627,9 +1628,9 @@ export const PrincipalDashboard = () => {
           ...data,
           schoolId: data.school_id,
           createdAt: data.created_at,
-          classes: data.class_id ? [data.class_id] : [],
-          subjects: data.subject_id ? [data.subject_id] : [],
-          status: data.locked ? 'Completed' : 'Active'
+          classes: data.classes as string[] || [],
+          subjects: data.subjects as string[] || [],
+          status: data.status
         };
 
         setExams([exam, ...exams]);
@@ -2310,9 +2311,16 @@ export const PrincipalDashboard = () => {
   const handleUpdateSchool = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      // Update Supabase
+      // 1. Update School Name in schools table
+      const { error: schoolError } = await supabase
+        .from('schools')
+        .update({ name: schoolSettings.name })
+        .eq('id', school.id);
+      
+      if (schoolError) throw schoolError;
+
+      // 2. Update School Settings in school_settings table
       await supabaseService.updateSchoolSettings(school.id, {
-        name: schoolSettings.name,
         motto: schoolSettings.motto,
         phone: schoolSettings.phone,
         website: schoolSettings.website,
@@ -3562,16 +3570,16 @@ export const PrincipalDashboard = () => {
                               <p className="text-xs text-gray-500">{exam.term} {exam.year}</p>
                             </div>
                             <Button 
-                              variant={exam.locked ? 'secondary' : 'default'}
+                              variant={exam.status === 'Completed' ? 'secondary' : 'default'}
                               size="sm"
                               onClick={() => {
-                                const newExams = exams.map(e => e.id === exam.id ? {...e, locked: !e.locked} : e);
+                                const newExams = exams.map(e => e.id === exam.id ? {...e, status: e.status === 'Completed' ? 'Active' : 'Completed'} : e);
                                 setExams(newExams);
                               }}
                               className="gap-2"
                             >
-                              {exam.locked ? <ShieldAlert className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
-                              {exam.locked ? 'Unlock' : 'Lock'}
+                              {exam.status === 'Completed' ? <ShieldAlert className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                              {exam.status === 'Completed' ? 'Unlock' : 'Lock'}
                             </Button>
                           </div>
                         ))}
@@ -3623,7 +3631,7 @@ export const PrincipalDashboard = () => {
 
                       {selectedEditExamId && (
                         <div className="space-y-6 border-t border-gray-100 pt-8">
-                          {exams.find(e => e.id === selectedEditExamId)?.locked ? (
+                          {exams.find(e => e.id === selectedEditExamId)?.status === 'Completed' ? (
                             <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-center gap-3 text-amber-800">
                               <Lock className="w-5 h-5" />
                               <p className="text-sm font-medium">This exam is locked and cannot be edited. Please unlock it first.</p>

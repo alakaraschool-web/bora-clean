@@ -355,10 +355,10 @@ export const TeacherDashboard = () => {
             ...e,
             schoolId: e.school_id,
             createdAt: e.created_at,
-            classes: e.class_id ? [e.class_id] : [],
-            subjects: e.subject_id ? [e.subject_id] : [],
-            status: e.locked ? 'Completed' : 'Active',
-            published: e.locked
+            classes: e.classes as string[] || [],
+            subjects: e.subjects as string[] || [],
+            status: e.status,
+            published: e.published
           }));
           setExams(formattedExams);
           localStorage.setItem('alakara_exams', JSON.stringify(formattedExams));
@@ -376,7 +376,7 @@ export const TeacherDashboard = () => {
                 id: m.id,
                 examId: m.exam_id,
                 studentId: m.student_id,
-                subject: m.subject_id,
+                subject: m.subject,
                 score: String(m.score),
                 grade: m.grade || '',
                 updatedAt: m.created_at
@@ -451,6 +451,67 @@ export const TeacherDashboard = () => {
 
   const teacherRole = currentTeacher?.role || 'Teacher';
 
+  const managedClass = classes.find(c => c.teacher_id === currentTeacher?.id || c.teacherId === currentTeacher?.id)?.name || '';
+  const assignedClasses = classes.filter(c => c.teacher_id === currentTeacher?.id || c.teacherId === currentTeacher?.id);
+  
+  const filteredStudents = allStudents.filter(s => {
+    const className = classes.find(c => c.id === entryConfig.classId)?.name;
+    const matchesClass = s.class?.trim() === className?.trim();
+    const matchesStream = !entryConfig.streamId || s.streamId === entryConfig.streamId;
+    return matchesClass && matchesStream;
+  });
+
+  const handleAddMaterial = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newMaterial.title || !newMaterial.file) {
+      alert('Please provide a title and select a file.');
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const fileExt = newMaterial.file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `materials/${session.user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('school-assets')
+        .upload(filePath, newMaterial.file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('school-assets')
+        .getPublicUrl(filePath);
+
+      const material = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: newMaterial.title,
+        subject: newMaterial.subject,
+        fileType: newMaterial.fileType,
+        fileUrl: publicUrl,
+        teacherId: currentTeacher.id,
+        schoolId: currentTeacher.school_id,
+        createdAt: new Date().toISOString()
+      };
+
+      setExamMaterials([material, ...examMaterials]);
+      setNewMaterial({
+        title: '',
+        subject: 'Mathematics',
+        fileType: 'PDF',
+        file: null
+      });
+      setShowAddMaterialModal(false);
+      alert('Material uploaded successfully!');
+    } catch (error) {
+      console.error('Error uploading material:', error);
+      alert('Failed to upload material.');
+    }
+  };
+
   const handleAddStudent = (e: FormEvent) => {
     e.preventDefault();
     const student = {
@@ -524,7 +585,7 @@ export const TeacherDashboard = () => {
   };
 
   const handleMarkChange = (studentId: string, categoryId: string, score: string) => {
-    if (activeExam.status !== 'Active' || activeExam.locked) return;
+    if (activeExam.status !== 'Active' || activeExam.status === 'Completed') return;
     
     const category = assessmentCategories.find(c => c.id === categoryId);
     const numScore = parseFloat(score);
@@ -544,7 +605,7 @@ export const TeacherDashboard = () => {
   };
 
   const saveMarks = async (isFinal: boolean = false) => {
-    if (activeExam.locked) {
+    if (activeExam.status === 'Completed') {
       alert('This exam is locked and cannot be edited.');
       return;
     }
@@ -592,7 +653,7 @@ export const TeacherDashboard = () => {
           id: m.id || `${activeExam.id}-${m.studentId}-${subject}`,
           exam_id: m.examId,
           student_id: m.studentId,
-          subject_id: m.subject,
+          subject: m.subject,
           score: parseFloat(String(m.score || m.percentage)),
           grade: m.grade
         }));
@@ -1269,7 +1330,7 @@ export const TeacherDashboard = () => {
                                       max={cat.maxScore}
                                       value={studentAssessments[cat.id] || ''}
                                       onChange={(e) => handleMarkChange(student.id, cat.id, e.target.value)}
-                                      disabled={activeExam.status !== 'Active' || activeExam.locked}
+                                      disabled={activeExam.status !== 'Active' || activeExam.status === 'Completed'}
                                       className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 font-bold text-center disabled:opacity-50"
                                       placeholder="--"
                                     />

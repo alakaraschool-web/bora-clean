@@ -94,46 +94,49 @@ export interface Database {
       exams: {
         Row: {
           id: string
+          school_id: string
           title: string
-          term: string
-          year: string
-          class_id: string | null
-          subject_id: string | null
-          locked: boolean
+          term: string | null
+          year: string | null
+          classes: Json
+          subjects: Json
+          status: string
+          published: boolean
           weighting: number
           created_at: string
-          school_id: string
         }
         Insert: {
           id?: string
+          school_id: string
           title: string
-          term: string
-          year: string
-          class_id?: string | null
-          subject_id?: string | null
-          locked?: boolean
+          term?: string | null
+          year?: string | null
+          classes?: Json
+          subjects?: Json
+          status?: string
+          published?: boolean
           weighting?: number
           created_at?: string
-          school_id: string
         }
         Update: {
           id?: string
+          school_id?: string
           title?: string
-          term?: string
-          year?: string
-          class_id?: string | null
-          subject_id?: string | null
-          locked?: boolean
+          term?: string | null
+          year?: string | null
+          classes?: Json
+          subjects?: Json
+          status?: string
+          published?: boolean
           weighting?: number
           created_at?: string
-          school_id?: string
         }
       }
       marks: {
         Row: {
           id: string
           student_id: string
-          subject_id: string
+          subject: string
           exam_id: string
           score: number
           grade: string | null
@@ -142,7 +145,7 @@ export interface Database {
         Insert: {
           id?: string
           student_id: string
-          subject_id: string
+          subject: string
           exam_id: string
           score: number
           grade?: string | null
@@ -151,7 +154,7 @@ export interface Database {
         Update: {
           id?: string
           student_id?: string
-          subject_id?: string
+          subject?: string
           exam_id?: string
           score?: number
           grade?: string | null
@@ -243,41 +246,44 @@ export interface Database {
         Row: {
           id: string
           school_id: string
-          name: string
-          motto: string | null
-          email: string | null
-          phone: string | null
-          website: string | null
-          address: string | null
           logo_url: string | null
+          motto: string | null
           letterhead_template: string | null
-          updated_at: string
+          theme_color: string | null
+          grading_system: Json
+          address: string | null
+          website: string | null
+          phone: string | null
+          email: string | null
+          created_at: string
         }
         Insert: {
           id?: string
           school_id: string
-          name: string
-          motto?: string | null
-          email?: string | null
-          phone?: string | null
-          website?: string | null
-          address?: string | null
           logo_url?: string | null
+          motto?: string | null
           letterhead_template?: string | null
-          updated_at?: string
+          theme_color?: string | null
+          grading_system?: Json
+          address?: string | null
+          website?: string | null
+          phone?: string | null
+          email?: string | null
+          created_at?: string
         }
         Update: {
           id?: string
           school_id?: string
-          name?: string
-          motto?: string | null
-          email?: string | null
-          phone?: string | null
-          website?: string | null
-          address?: string | null
           logo_url?: string | null
+          motto?: string | null
           letterhead_template?: string | null
-          updated_at?: string
+          theme_color?: string | null
+          grading_system?: Json
+          address?: string | null
+          website?: string | null
+          phone?: string | null
+          email?: string | null
+          created_at?: string
         }
       }
       exam_materials: {
