@@ -76,11 +76,11 @@ export const SchoolRegistration = () => {
 
     try {
       const sanitizedPhone = formData.principalPhone.replace(/\s+/g, '');
-      const principalEmail = `p${sanitizedPhone}@boraschool.ke`;
+      const formattedPhone = sanitizedPhone.startsWith('+') ? sanitizedPhone : `+254${sanitizedPhone.replace(/^0/, '')}`;
 
-      // 1. Sign up user in Supabase Auth using email (more reliable than phone in many setups)
+      // 1. Sign up user in Supabase Auth using phone (more reliable than email in this setup)
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: principalEmail,
+        phone: formattedPhone,
         password: formData.password,
         options: {
           data: {
@@ -119,7 +119,7 @@ export const SchoolRegistration = () => {
           id: authData.user.id,
           user_id: authData.user.id,
           name: formData.principalName,
-          email: principalEmail,
+          email: `${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
           phone: sanitizedPhone,
           role: 'principal',
           school_id: schoolData.id,

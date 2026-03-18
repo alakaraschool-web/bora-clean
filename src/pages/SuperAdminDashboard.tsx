@@ -400,6 +400,7 @@ export const SuperAdminDashboard = () => {
             user_id: principalAuthId,
             school_id: schoolData.id,
             name: `${newSchool.name} Principal`,
+            email: `${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
             phone: sanitizedPhone,
             password: creds.pass,
             must_change_password: true,

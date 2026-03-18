@@ -76,12 +76,12 @@ export const SuperAdminLogin = () => {
         (sanitizedInput.toLowerCase() === 'bahatisolomon70@gmail.com' && password === 'Godalways95') ||
         (sanitizedInput === 'admin' && password === 'admin123')
       )) {
-        const bootstrapEmail = sanitizedInput.toLowerCase() === 'bahatisolomon70@gmail.com' 
-          ? 'bahatisolomon70@gmail.com' 
-          : 'admin@boraschool.ke';
+        const bootstrapPhone = sanitizedInput.toLowerCase() === 'bahatisolomon70@gmail.com' 
+          ? '+254700000000' // Placeholder for Solomon
+          : '+254711111111'; // Placeholder for admin
           
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: bootstrapEmail,
+          phone: bootstrapPhone,
           password: password,
           options: {
             data: {
@@ -94,7 +94,7 @@ export const SuperAdminLogin = () => {
         if (!signUpError && signUpData.user) {
           // Retry sign in after successful sign up
           const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
-            email: bootstrapEmail,
+            phone: bootstrapPhone,
             password: password
           });
           data = retryData;

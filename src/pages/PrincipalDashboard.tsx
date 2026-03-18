@@ -84,6 +84,161 @@ export const PrincipalDashboard = () => {
   });
   const [principalProfile, setPrincipalProfile] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isSuspended, setIsSuspended] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [daysToExpiry, setDaysToExpiry] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'students' | 'academic' | 'settings' | 'classes' | 'users'>('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [managingClass, setManagingClass] = useState<any>(null);
+  const [academicSubTab, setAcademicSubTab] = useState<'overview' | 'create-exam' | 'learning-area' | 'grading' | 'analysis' | 'reports' | 'results-processing' | 'academic-settings' | 'merit-list' | 'marks-entry'>('overview');
+  const [topXCount, setTopXCount] = useState(10);
+  const [topXSubjectChampionsCount, setTopXSubjectChampionsCount] = useState(1);
+  const [selectedProcessingClass, setSelectedProcessingClass] = useState('All');
+  const [selectedAnalysisClass, setSelectedAnalysisClass] = useState('All');
+  const [selectedProcessingExamId, setSelectedProcessingExamId] = useState('');
+  
+  const [pendingMarks, setPendingMarks] = useState<{ [key: string]: string }>({});
+  const [stagedMarks, setStagedMarks] = useState<any[] | null>(null);
+
+  const [students, setStudents] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [classes, setClasses] = useState<any[]>([]);
+  const [exams, setExams] = useState<any[]>([]);
+  const [marks, setMarks] = useState<any[]>([]);
+  const [schoolSettings, setSchoolSettings] = useState<any>({
+    name: '',
+    motto: '',
+    address: '',
+    website: '',
+    phone: '',
+    email: '',
+    logo: null,
+    letterheadTemplate: 'standard'
+  });
+  const [gradingSystem, setGradingSystem] = useState<any[]>([]);
+  const [learningAreas, setLearningAreas] = useState<string[]>(['Mathematics', 'English', 'Kiswahili', 'Science', 'Social Studies', 'CRE', 'Music', 'Art & Craft', 'Physical Education']);
+  const [streams, setStreams] = useState<any[]>([]);
+  const [assessmentCategories, setAssessmentCategories] = useState<any[]>([]);
+  const [rankingLogic, setRankingLogic] = useState<any>({
+    primaryCriteria: 'aggregate_total',
+    tieBreaker1: 'distinctions_count',
+    tieBreaker2: 'core_subjects_total',
+    coreSubjects: ['Mathematics', 'English', 'Kiswahili']
+  });
+
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showAddClassModal, setShowAddClassModal] = useState(false);
+  const [showReportPreview, setShowReportPreview] = useState(false);
+  const [selectedEditClass, setSelectedEditClass] = useState('');
+  const [selectedEditSubject, setSelectedEditSubject] = useState('');
+  const [selectedEditExamId, setSelectedEditExamId] = useState('');
+  const [editExamConfig, setEditExamConfig] = useState({ weighting: 100, maxMarks: 100 });
+  const [showEditConfirmation, setShowEditConfirmation] = useState(false);
+
+  const [newStudent, setNewStudent] = useState({ name: '', adm: '', class: 'Form 1', streamId: '', gender: 'Male', profile_image: null as string | null });
+  const [editingStudent, setEditingStudent] = useState<any>(null);
+  const [newClass, setNewClass] = useState({ name: '', teacherId: '', capacity: 40, streams: [] as string[] });
+  const [editingClass, setEditingClass] = useState<any>(null);
+
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [studentSortBy, setStudentSortBy] = useState<'name' | 'adm'>('name');
+  const [studentSortOrder, setStudentSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [viewingSubjectChampions, setViewingSubjectChampions] = useState<string | null>(null);
+  const [selectedClassFilter, setSelectedClassFilter] = useState('All');
+
+  const [showEditMarksModal, setShowEditMarksModal] = useState(false);
+  const [selectedMarksStudent, setSelectedMarksStudent] = useState<any>(null);
+  const [editingMarks, setEditingMarks] = useState<any>({}); // {examId: score}
+
+  const [newExam, setNewExam] = useState({
+    title: '',
+    term: 'Term 2',
+    year: '2026',
+    classes: [] as string[],
+    subjects: [] as string[],
+    startDate: '',
+    endDate: ''
+  });
+
+  const [reportConfig, setReportConfig] = useState({
+    selectedStudentId: '',
+    selectedClass: 'All',
+    selectedExamIds: [] as string[],
+    includeAverages: true,
+    includeGrades: true,
+    graphType: 'bar' as 'bar' | 'line',
+    templateType: 'classic' as 'classic' | 'modern' | 'graph' | 'primary' | 'compact',
+    includeLetterhead: true,
+    includePerformanceTrend: true
+  });
+
+  const [selectedAnalysisExamId, setSelectedAnalysisExamId] = useState('');
+  const [analysisOptions, setAnalysisOptions] = useState({
+    showGrades: true,
+    showRank: true
+  });
+
+  const [newStaff, setNewStaff] = useState({ 
+    name: '', 
+    email: '', 
+    phone: '',
+    role: 'Teacher', 
+    assignments: [] as { classId: string, streamId: string, subject: string }[] 
+  });
+  const [editingStaff, setEditingStaff] = useState<any>(null);
+  const [generatedStaffCreds, setGeneratedStaffCreds] = useState<{name: string, username: string, password: string} | null>(null);
+
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [logs, setLogs] = useState<any[]>(() => {
+    const saved = localStorage.getItem('alakara_audit_trail');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [meritListSortBy, setMeritListSortBy] = useState<'total' | 'average' | 'position' | 'name' | 'gender' | 'stream'>('total');
+
+  // Auto-save drafts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const draft = {
+        newExam,
+        newStaff,
+        schoolSettings,
+        newClass,
+        newStudent
+      };
+      localStorage.setItem('alakara_config_draft', JSON.stringify(draft));
+      setHasUnsavedChanges(true);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [newExam, newStaff, schoolSettings, newClass, newStudent]);
+
+  // Load drafts on mount
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('alakara_config_draft');
+    if (savedDraft) {
+      const draft = JSON.parse(savedDraft);
+      // Only set if they are not empty to avoid overwriting initial state with empty drafts
+      if (draft.newExam.title) setNewExam(draft.newExam);
+      if (draft.newStaff.name) setNewStaff(draft.newStaff);
+      if (draft.schoolSettings.name) setSchoolSettings(draft.schoolSettings);
+      if (draft.newClass.name) setNewClass(draft.newClass);
+      if (draft.newStudent.name) setNewStudent(draft.newStudent);
+    }
+    // Reset unsaved changes after initial load
+    setTimeout(() => setHasUnsavedChanges(false), 1000);
+  }, []);
+
+  // Prevent accidental reload
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   useEffect(() => {
     let isMounted = true;
@@ -174,27 +329,6 @@ export const PrincipalDashboard = () => {
     };
   }, [navigate]);
 
-  if (isAuthLoading) {
-    return (
-      <div className="min-h-screen bg-kenya-black flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-kenya-green animate-spin mx-auto mb-4" />
-          <p className="text-white/60 font-medium italic">Verifying credentials...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!school) {
-    return (
-      <div className="min-h-screen bg-kenya-black flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-kenya-green animate-spin mx-auto mb-4" />
-          <p className="text-white/60 font-medium italic">Verifying credentials...</p>
-        </div>
-      </div>
-    );
-  }
   useEffect(() => {
     if (!school?.id) return;
 
@@ -315,21 +449,27 @@ export const PrincipalDashboard = () => {
     loadAllData();
   }, [school?.id]);
 
-  const [isSuspended, setIsSuspended] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [daysToExpiry, setDaysToExpiry] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'students' | 'academic' | 'settings' | 'classes' | 'users'>('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [managingClass, setManagingClass] = useState<any>(null);
-  const [academicSubTab, setAcademicSubTab] = useState<'overview' | 'create-exam' | 'learning-area' | 'grading' | 'analysis' | 'reports' | 'results-processing' | 'academic-settings' | 'merit-list' | 'marks-entry'>('overview');
-  const [topXCount, setTopXCount] = useState(10);
-  const [topXSubjectChampionsCount, setTopXSubjectChampionsCount] = useState(1);
-  const [selectedProcessingClass, setSelectedProcessingClass] = useState('All');
-  const [selectedAnalysisClass, setSelectedAnalysisClass] = useState('All');
-  const [selectedProcessingExamId, setSelectedProcessingExamId] = useState('');
-  
-  const [pendingMarks, setPendingMarks] = useState<{ [key: string]: string }>({});
-  const [stagedMarks, setStagedMarks] = useState<any[] | null>(null);
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-kenya-black flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-kenya-green animate-spin mx-auto mb-4" />
+          <p className="text-white/60 font-medium italic">Verifying credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!school) {
+    return (
+      <div className="min-h-screen bg-kenya-black flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-kenya-green animate-spin mx-auto mb-4" />
+          <p className="text-white/60 font-medium italic">Verifying credentials...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleBulkMarksUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -610,16 +750,6 @@ export const PrincipalDashboard = () => {
     XLSX.utils.book_append_sheet(wb, ws, "Marks");
     XLSX.writeFile(wb, `Bulk_Marks_${selectedProcessingClass}_Template.xlsx`);
   };
-  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
-  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
-  const [showAddClassModal, setShowAddClassModal] = useState(false);
-  const [showReportPreview, setShowReportPreview] = useState(false);
-  const [selectedEditClass, setSelectedEditClass] = useState('');
-  const [selectedEditSubject, setSelectedEditSubject] = useState('');
-  const [selectedEditExamId, setSelectedEditExamId] = useState('');
-  const [editExamConfig, setEditExamConfig] = useState({ weighting: 100, maxMarks: 100 });
-  const [showEditConfirmation, setShowEditConfirmation] = useState(false);
-
   const handleSaveExamEdit = async () => {
     try {
       const exam = exams.find(e => e.id === selectedEditExamId);
@@ -636,13 +766,14 @@ export const PrincipalDashboard = () => {
       );
       setExams(updatedExams);
       
-      addLog('Edit Exam', `Updated configuration for ${exam.title}`);
+      // addLog('Edit Exam', `Updated configuration for ${exam.title}`);
       setShowEditConfirmation(false);
       alert('Exam configuration updated successfully!');
     } catch (error: any) {
       alert('Error saving exam edit: ' + error.message);
     }
   };
+
   const downloadReportPDF = (studentId?: string, returnDoc: boolean = false) => {
     const targetId = studentId || reportConfig.selectedStudentId;
     const student = students.find(s => s.id === targetId);
@@ -858,353 +989,6 @@ export const PrincipalDashboard = () => {
     });
   };
 
-  const [students, setStudents] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_students');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: '1', name: 'Alice Wanjiku', adm: 'ADM-2024-001', class: 'Form 1', status: 'Active', gender: 'Female', profile_image: null },
-      { id: '2', name: 'Bob Otieno', adm: 'ADM-2024-002', class: 'Form 2', status: 'Active', gender: 'Male', profile_image: null },
-      { id: '3', name: 'Charlie Musyoka', adm: 'ADM-2024-003', class: 'Form 1', status: 'Active', gender: 'Male', profile_image: null },
-      { id: '4', name: 'Diana Kwamboka', adm: 'ADM-2024-004', class: 'Grade 7', status: 'Active', gender: 'Female', profile_image: null },
-      { id: '5', name: 'Evans Kiprop', adm: 'ADM-2024-005', class: 'Grade 7', status: 'Active', gender: 'Male', profile_image: null },
-    ];
-  });
-
-  const [newStudent, setNewStudent] = useState({ name: '', adm: '', class: 'Form 1', streamId: '', gender: 'Male', profile_image: null as string | null });
-  const [editingStudent, setEditingStudent] = useState<any>(null);
-
-  const [classes, setClasses] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_classes');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: '1', name: 'Form 1', teacherId: '1', capacity: 40 },
-      { id: '2', name: 'Form 2', teacherId: '2', capacity: 40 },
-      { id: '3', name: 'Form 3', teacherId: '3', capacity: 40 },
-      { id: '4', name: 'Form 4', teacherId: '', capacity: 40 },
-      { id: '5', name: 'Grade 7', teacherId: '', capacity: 40 },
-      { id: '6', name: 'Grade 8', teacherId: '', capacity: 40 },
-    ];
-  });
-  const [newClass, setNewClass] = useState({ name: '', teacherId: '', capacity: 40, streams: [] as string[] });
-  const [editingClass, setEditingClass] = useState<any>(null);
-
-  useEffect(() => {
-    localStorage.setItem('alakara_classes', JSON.stringify(classes));
-  }, [classes]);
-  const [studentSearchQuery, setStudentSearchQuery] = useState('');
-  const [studentSortBy, setStudentSortBy] = useState<'name' | 'adm'>('name');
-  const [studentSortOrder, setStudentSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [viewingSubjectChampions, setViewingSubjectChampions] = useState<string | null>(null);
-  const [selectedClassFilter, setSelectedClassFilter] = useState('All');
-  const [marks, setMarks] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_marks');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 'm1', examId: 'exam-1', studentId: '1', subject: 'Mathematics', score: '85', total: 85, grade: 'A', points: 12 },
-      { id: 'm2', examId: 'exam-1', studentId: '1', subject: 'English', score: '78', total: 78, grade: 'A-', points: 11 },
-      { id: 'm3', examId: 'exam-1', studentId: '3', subject: 'Mathematics', score: '92', total: 92, grade: 'A', points: 12 },
-      { id: 'm4', examId: 'exam-1', studentId: '3', subject: 'English', score: '65', total: 65, grade: 'B', points: 9 },
-      { id: 'm5', examId: 'exam-1', studentId: '4', subject: 'Mathematics', score: '70', total: 70, grade: 'B+', points: 10 },
-    ];
-  });
-  const [showEditMarksModal, setShowEditMarksModal] = useState(false);
-  const [selectedMarksStudent, setSelectedMarksStudent] = useState<any>(null);
-  const [editingMarks, setEditingMarks] = useState<any>({}); // {examId: score}
-
-  useEffect(() => {
-    localStorage.setItem('alakara_marks', JSON.stringify(marks));
-  }, [marks]);
-
-  useEffect(() => {
-    localStorage.setItem('alakara_students', JSON.stringify(students));
-  }, [students]);
-  const [exams, setExams] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_exams');
-    if (saved) return JSON.parse(saved);
-    return [
-      { 
-        id: 'exam-1', 
-        title: 'End of Term 2 Assessment', 
-        term: 'Term 2', 
-        year: '2026', 
-        classes: ['Form 1', 'Form 2', 'Grade 7'], 
-        subjects: ['Mathematics', 'English', 'Kiswahili', 'Science'],
-        status: 'Active',
-        published: false,
-        createdAt: new Date().toISOString()
-      }
-    ];
-  });
-
-  const [newExam, setNewExam] = useState({
-    title: '',
-    term: 'Term 2',
-    year: '2026',
-    classes: [] as string[],
-    subjects: [] as string[],
-    startDate: '',
-    endDate: ''
-  });
-
-  const [learningAreas, setLearningAreas] = useState<string[]>(() => {
-    const saved = localStorage.getItem('alakara_learning_areas');
-    if (saved) return JSON.parse(saved);
-    return ['Mathematics', 'English', 'Kiswahili', 'Science', 'Social Studies', 'CRE'];
-  });
-
-  const [gradingSystem, setGradingSystem] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_grading');
-    if (saved) return JSON.parse(saved);
-    return [
-      { grade: 'A', min: 80, max: 100, points: 12 },
-      { grade: 'A-', min: 75, max: 79, points: 11 },
-      { grade: 'B+', min: 70, max: 74, points: 10 },
-      { grade: 'B', min: 65, max: 69, points: 9 },
-      { grade: 'B-', min: 60, max: 64, points: 8 },
-      { grade: 'C+', min: 55, max: 59, points: 7 },
-      { grade: 'C', min: 50, max: 54, points: 6 },
-      { grade: 'C-', min: 45, max: 49, points: 5 },
-      { grade: 'D+', min: 40, max: 44, points: 4 },
-      { grade: 'D', min: 35, max: 39, points: 3 },
-      { grade: 'D-', min: 30, max: 34, points: 2 },
-      { grade: 'E', min: 0, max: 29, points: 1 },
-    ];
-  });
-
-  const [reportConfig, setReportConfig] = useState({
-    selectedStudentId: '',
-    selectedClass: 'All',
-    selectedExamIds: [] as string[],
-    includeAverages: true,
-    includeGrades: true,
-    graphType: 'bar' as 'bar' | 'line',
-    templateType: 'classic' as 'classic' | 'modern' | 'graph' | 'primary' | 'compact',
-    includeLetterhead: true,
-    includePerformanceTrend: true
-  });
-
-  const [selectedAnalysisExamId, setSelectedAnalysisExamId] = useState('');
-  const [analysisOptions, setAnalysisOptions] = useState({
-    showGrades: true,
-    showRank: true
-  });
-
-  const [assessmentCategories, setAssessmentCategories] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_assessment_categories');
-    return saved ? JSON.parse(saved) : [
-      { id: 'cat1', name: 'CAT 1', maxScore: 20 },
-      { id: 'cat2', name: 'CAT 2', maxScore: 20 },
-      { id: 'final', name: 'Final Exam', maxScore: 60 },
-    ];
-  });
-
-  const [rankingLogic, setRankingLogic] = useState<any>(() => {
-    const saved = localStorage.getItem('alakara_ranking_logic');
-    return saved ? JSON.parse(saved) : {
-      primaryCriteria: 'aggregate_total',
-      tieBreaker1: 'distinctions_count',
-      tieBreaker2: 'core_subjects_total',
-      coreSubjects: ['Mathematics', 'English', 'Kiswahili']
-    };
-  });
-
-  useEffect(() => {
-    localStorage.setItem('alakara_assessment_categories', JSON.stringify(assessmentCategories));
-  }, [assessmentCategories]);
-
-  useEffect(() => {
-    localStorage.setItem('alakara_ranking_logic', JSON.stringify(rankingLogic));
-  }, [rankingLogic]);
-
-  const [schoolSettings, setSchoolSettings] = useState({
-    name: '',
-    motto: '',
-    address: '',
-    phone: '',
-    email: '',
-    website: '',
-    logo: '',
-    letterheadTemplate: 'standard'
-  });
-
-  useEffect(() => {
-    localStorage.setItem('alakara_learning_areas', JSON.stringify(learningAreas));
-  }, [learningAreas]);
-
-  useEffect(() => {
-    localStorage.setItem('alakara_grading', JSON.stringify(gradingSystem));
-  }, [gradingSystem]);
-
-  useEffect(() => {
-    localStorage.setItem('alakara_exams', JSON.stringify(exams));
-  }, [exams]);
-  const [streams, setStreams] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_streams');
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 's1', classId: '1', name: 'A' },
-      { id: 's2', classId: '1', name: 'B' },
-      { id: 's3', classId: '2', name: 'East' },
-      { id: 's4', classId: '2', name: 'West' },
-    ];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('alakara_streams', JSON.stringify(streams));
-  }, [streams]);
-
-  const [staff, setStaff] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_staff');
-    if (saved) return JSON.parse(saved);
-    return [
-      { 
-        id: '1', 
-        name: 'John Kamau', 
-        email: '0712345678', 
-        role: 'Head of Science', 
-        status: 'Active', 
-        username: '0712345678', 
-        password: 'password123', 
-        mustChangePassword: true, 
-        assignments: [
-          { classId: '1', streamId: 's1', subject: 'Science' },
-          { classId: '5', streamId: '', subject: 'Science' }
-        ]
-      },
-      { 
-        id: '2', 
-        name: 'Sarah Anyango', 
-        email: '0723456789', 
-        role: 'Mathematics Teacher', 
-        status: 'Active', 
-        username: '0723456789', 
-        password: 'password123', 
-        mustChangePassword: true, 
-        assignments: [
-          { classId: '1', streamId: 's1', subject: 'Mathematics' },
-          { classId: '1', streamId: 's2', subject: 'Mathematics' }
-        ]
-      },
-    ];
-  });
-
-  const [newStaff, setNewStaff] = useState({ 
-    name: '', 
-    email: '', 
-    phone: '',
-    role: 'Teacher', 
-    assignments: [] as { classId: string, streamId: string, subject: string }[] 
-  });
-  const [editingStaff, setEditingStaff] = useState<any>(null);
-  const [generatedStaffCreds, setGeneratedStaffCreds] = useState<{name: string, username: string, password: string} | null>(null);
-
-  useEffect(() => {
-    localStorage.setItem('alakara_staff', JSON.stringify(staff));
-  }, [staff]);
-
-  useEffect(() => {
-    const checkStatus = () => {
-      const currentSchool = JSON.parse(localStorage.getItem('alakara_current_school') || '{}');
-      const allSchools = JSON.parse(localStorage.getItem('alakara_schools') || '[]');
-      
-      const updatedSchool = allSchools.find((s: any) => s.id === currentSchool.id);
-      
-      if (updatedSchool && JSON.stringify(updatedSchool) !== JSON.stringify(school)) {
-        setSchool(updatedSchool);
-        
-        // Check subscription expiry
-        const expiryDate = updatedSchool.subscriptionExpiresAt ? new Date(updatedSchool.subscriptionExpiresAt) : null;
-        const now = new Date();
-        const isExpired = expiryDate ? expiryDate < now : false;
-        
-        setIsSuspended(updatedSchool.status === 'Suspended' || isExpired);
-
-        if (expiryDate) {
-          const diffTime = expiryDate.getTime() - now.getTime();
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          setDaysToExpiry(diffDays);
-
-          // Trigger notification for expiry warning
-          if (diffDays <= 15 && diffDays > 0) {
-            const lastWarning = localStorage.getItem(`alakara_expiry_warning_${updatedSchool.id}`);
-            const today = new Date().toDateString();
-            if (lastWarning !== today) {
-              addNotification({
-                title: 'Subscription Expiry Warning',
-                message: `Your school subscription will expire in ${diffDays} days. Please renew to avoid service interruption.`,
-                type: 'warning',
-                role: 'principal',
-                userId: updatedSchool.id
-              });
-              localStorage.setItem(`alakara_expiry_warning_${updatedSchool.id}`, today);
-            }
-          }
-        } else {
-          setDaysToExpiry(null);
-        }
-      } else if (!updatedSchool) {
-        navigate('/login');
-      }
-    };
-
-    checkStatus();
-    // Poll for status changes in this demo
-    const interval = setInterval(checkStatus, 2000);
-    return () => clearInterval(interval);
-  }, [navigate]);
-
-  useEffect(() => {
-    const fetchAllData = async () => {
-      if (!school?.id) return;
-      
-      try {
-        // Fetch Students
-        const { data: studentsData } = await supabase
-          .from('students')
-          .select('*')
-          .eq('school_id', school.id);
-        if (studentsData) setStudents(studentsData);
-
-        // Fetch Classes
-        const { data: classesData } = await supabase
-          .from('classes')
-          .select('*')
-          .eq('school_id', school.id);
-        if (classesData) setClasses(classesData);
-
-        // Fetch Exams
-        const { data: examsData } = await supabase
-          .from('exams')
-          .select('*')
-          .eq('school_id', school.id);
-        if (examsData) {
-          // Map snake_case to camelCase if needed, or just use as is
-          setExams(examsData.map(e => ({
-            ...e,
-            schoolId: e.school_id,
-            createdAt: e.created_at,
-            // For now, assume classes/subjects are stored in metadata or handle the mismatch
-            classes: e.class_id ? [e.class_id] : [],
-            subjects: e.subject_id ? [e.subject_id] : []
-          })));
-        }
-
-        // Fetch Staff (Profiles)
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('role', 'teacher')
-          .eq('school_id', school.id);
-        if (profilesData) setStaff(profilesData);
-
-      } catch (error) {
-        console.error('Error fetching data from Supabase:', error);
-      }
-    };
-
-    fetchAllData();
-  }, [school?.id]);
-
   const handleLogout = async () => {
     await supabase.auth.signOut();
     localStorage.removeItem('alakara_current_school');
@@ -1225,11 +1009,7 @@ export const PrincipalDashboard = () => {
       return;
     }
 
-    let finalEmail = sanitizedPhone;
-    
-    if (!finalEmail && newStaff.email) {
-      finalEmail = newStaff.email.trim().toLowerCase();
-    }
+    const finalPhone = sanitizedPhone;
 
     if (editingStaff) {
       // Safety check: Prevent changing role of a teacher
@@ -1249,8 +1029,7 @@ export const PrincipalDashboard = () => {
       const updatedStaff = staff.map(s => s.id === editingStaff.id ? { 
         ...editingStaff, 
         name: newStaff.name, 
-        email: finalEmail, 
-        phone: sanitizedPhone,
+        phone: finalPhone,
         role: newStaff.role,
         assignments: newStaff.assignments
       } : s);
@@ -1259,8 +1038,7 @@ export const PrincipalDashboard = () => {
       // Sync with Supabase
       supabase.from('profiles').update({
         name: newStaff.name,
-        email: finalEmail,
-        phone: sanitizedPhone,
+        phone: finalPhone,
         role: newStaff.role.toLowerCase(),
         assignments: newStaff.assignments
       }).eq('id', editingStaff.id).then(({ error }) => {
@@ -1297,17 +1075,15 @@ export const PrincipalDashboard = () => {
           }
         });
 
-        // Try to sign up with phone or email
-        const isEmail = finalEmail.includes('@');
         const cleanPhone = sanitizedPhone.startsWith('+') ? sanitizedPhone : 
                            sanitizedPhone.startsWith('0') ? `+254${sanitizedPhone.substring(1)}` : 
                            `+${sanitizedPhone}`;
 
-        const { data: authData, error: authError } = await secondaryClient.auth.signUp(
-          isEmail 
-            ? { email: finalEmail, password } 
-            : { phone: cleanPhone, password }
-        );
+        // Use phone for signUp
+        const { data: authData, error: authError } = await secondaryClient.auth.signUp({
+          phone: cleanPhone,
+          password: password
+        });
 
         if (authError && authError.message !== 'User already registered') {
           throw authError;
@@ -1321,7 +1097,7 @@ export const PrincipalDashboard = () => {
           const { data: existingProfile } = await supabase
             .from('profiles')
             .select('id, user_id')
-            .eq(isEmail ? 'email' : 'phone', isEmail ? finalEmail : sanitizedPhone)
+            .eq('phone', sanitizedPhone)
             .maybeSingle();
           
           if (existingProfile) {
@@ -1338,7 +1114,7 @@ export const PrincipalDashboard = () => {
           id: authUserId,
           user_id: linkedUserId,
           name: newStaff.name,
-          email: finalEmail,
+          email: `${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
           phone: sanitizedPhone,
           role: newStaff.role.toLowerCase(),
           school_id: school.id,
@@ -1355,15 +1131,14 @@ export const PrincipalDashboard = () => {
           const staffMember = {
             id: data.id,
             ...newStaff,
-            email: finalEmail,
             status: 'Active',
-            username: finalEmail,
+            username: sanitizedPhone,
             password,
             mustChangePassword: true,
             school_id: school.id
           };
           setStaff([...staff, staffMember]);
-          setGeneratedStaffCreds({ name: newStaff.name, username: finalEmail, password });
+          setGeneratedStaffCreds({ name: newStaff.name, username: sanitizedPhone, password });
           alert('Staff member added successfully and Auth account created!');
         }
       } catch (error: any) {
@@ -1459,13 +1234,13 @@ export const PrincipalDashboard = () => {
           }
         });
 
-        // Use ADM number as dummy email for Auth
-        const studentEmail = `${newStudent.adm.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
+        // Use ADM number to generate a virtual phone number for Auth
+        const studentPhone = `+254${newStudent.adm.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account
         const { data: authData, error: authError } = await secondaryClient.auth.signUp({
-          email: studentEmail,
+          phone: studentPhone,
           password: password
         });
 
@@ -1517,7 +1292,8 @@ export const PrincipalDashboard = () => {
           id: authUserId,
           user_id: linkedUserId,
           name: newStudent.name,
-          email: studentEmail,
+          email: `${studentPhone.replace('+', '')}@student.boraschool.ke`, // Dummy email to satisfy DB constraint
+          phone: studentPhone,
           role: 'student',
           school_id: school.id,
           student_id: studentData.id,
@@ -1829,52 +1605,6 @@ export const PrincipalDashboard = () => {
     XLSX.writeFile(wb, className ? `Students_${className}_Template.xlsx` : "Student_Bulk_Upload_Template.xlsx");
   };
 
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-  // Auto-save drafts
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const draft = {
-        newExam,
-        newStaff,
-        schoolSettings,
-        newClass,
-        newStudent
-      };
-      localStorage.setItem('alakara_config_draft', JSON.stringify(draft));
-      setHasUnsavedChanges(true);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [newExam, newStaff, schoolSettings, newClass, newStudent]);
-
-  // Load drafts on mount
-  useEffect(() => {
-    const savedDraft = localStorage.getItem('alakara_config_draft');
-    if (savedDraft) {
-      const draft = JSON.parse(savedDraft);
-      // Only set if they are not empty to avoid overwriting initial state with empty drafts
-      if (draft.newExam.title) setNewExam(draft.newExam);
-      if (draft.newStaff.name) setNewStaff(draft.newStaff);
-      if (draft.schoolSettings.name) setSchoolSettings(draft.schoolSettings);
-      if (draft.newClass.name) setNewClass(draft.newClass);
-      if (draft.newStudent.name) setNewStudent(draft.newStudent);
-    }
-    // Reset unsaved changes after initial load
-    setTimeout(() => setHasUnsavedChanges(false), 1000);
-  }, []);
-
-  // Prevent accidental reload
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [hasUnsavedChanges]);
-
   const handleCreateExam = async (e: FormEvent) => {
     e.preventDefault();
     
@@ -1913,11 +1643,6 @@ export const PrincipalDashboard = () => {
       alert('Failed to create exam: ' + error.message);
     }
   };
-
-  const [logs, setLogs] = useState<any[]>(() => {
-    const saved = localStorage.getItem('alakara_audit_trail');
-    return saved ? JSON.parse(saved) : [];
-  });
 
   const addLog = (action: string, details: string) => {
     const newLog = {
@@ -2204,8 +1929,6 @@ export const PrincipalDashboard = () => {
       }
     });
   };
-
-  const [meritListSortBy, setMeritListSortBy] = useState<'total' | 'average' | 'position' | 'name' | 'gender' | 'stream'>('total');
 
   const getAnalysisData = () => {
     if (!selectedAnalysisExamId) return [];
