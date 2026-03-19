@@ -311,11 +311,14 @@ export const TeacherDashboard = () => {
     const checkStatus = async () => {
       if (!currentTeacher?.school_id) return;
       
-      const allSchools = JSON.parse(localStorage.getItem('alakara_schools') || '[]');
-      const school = allSchools.find((s: any) => s.id === currentTeacher.school_id);
+      const { data: school } = await supabase
+        .from('schools')
+        .select('*')
+        .eq('id', currentTeacher.school_id)
+        .single();
       
       if (school) {
-        const expiryDate = school.subscriptionExpiresAt ? new Date(school.subscriptionExpiresAt) : null;
+        const expiryDate = school.subscription_expires_at ? new Date(school.subscription_expires_at) : null;
         const now = new Date();
         const isExpired = expiryDate ? expiryDate < now : false;
         setIsSuspended(school.status === 'Suspended' || isExpired);
@@ -323,7 +326,7 @@ export const TeacherDashboard = () => {
     };
 
     checkStatus();
-    const interval = setInterval(checkStatus, 5000);
+    const interval = setInterval(checkStatus, 30000); // Check every 30s instead of 5s to save quota
     return () => clearInterval(interval);
   }, [currentTeacher?.school_id]);
 
@@ -521,23 +524,79 @@ export const TeacherDashboard = () => {
     }
   };
 
-  const handleAddStudent = (e: FormEvent) => {
+  const handleAddStudent = async (e: FormEvent) => {
     e.preventDefault();
-    const student = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...newStudent,
-      class: managedClass,
-      status: 'Active'
-    };
-    setAllStudents([...allStudents, student]);
-    setNewStudent({ name: '', adm: '' });
-    setShowAddStudentModal(false);
-    alert('Student admitted successfully!');
+    if (!managedClass) {
+      alert('You must be a class teacher to add students.');
+      return;
+    }
+
+    if (teacherRole === 'Ordinary Teacher') {
+      alert('Ordinary teachers cannot add students.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.from('students').insert({
+        name: newStudent.name,
+        adm: newStudent.adm,
+        class: managedClass.name,
+        gender: newStudent.gender || 'Male',
+        school_id: currentTeacher.school_id,
+        status: 'Active'
+      }).select().single();
+
+      if (error) throw error;
+
+      if (data) {
+        setAllStudents([data, ...allStudents]);
+        setShowAddStudentModal(false);
+        setNewStudent({ name: '', adm: '', gender: 'Male', streamId: '' });
+        
+        // Update local storage for persistence
+        localStorage.setItem('alakara_students', JSON.stringify([data, ...allStudents]));
+        
+        addNotification({
+          title: 'Student Admitted',
+          message: `${data.name} has been successfully admitted to ${managedClass.name}.`,
+          type: 'success',
+          role: 'teacher'
+        });
+      }
+    } catch (error) {
+      console.error('Error adding student:', error);
+      alert('Failed to add student to database.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const deleteStudent = (id: string) => {
+  const deleteStudent = async (id: string) => {
+    if (teacherRole === 'Ordinary Teacher') {
+      alert('Ordinary teachers cannot delete students.');
+      return;
+    }
+
     if (window.confirm('Are you sure you want to remove this student?')) {
-      setAllStudents(allStudents.filter(s => s.id !== id));
+      try {
+        const { error } = await supabase.from('students').delete().eq('id', id);
+        if (error) throw error;
+
+        const updatedStudents = allStudents.filter(s => s.id !== id);
+        setAllStudents(updatedStudents);
+        localStorage.setItem('alakara_students', JSON.stringify(updatedStudents));
+        
+        addNotification({
+          title: 'Student Removed',
+          message: 'Student record has been deleted successfully.',
+          type: 'info',
+          role: 'teacher'
+        });
+      } catch (error) {
+        console.error('Error deleting student:', error);
+        alert('Failed to delete student from database.');
+      }
     }
   };
 
@@ -1687,10 +1746,12 @@ export const TeacherDashboard = () => {
                   <h1 className="text-3xl font-black text-kenya-black uppercase tracking-tight">Class Management</h1>
                   <p className="text-gray-500">Managing {managedClass?.name || 'Assigned Class'}</p>
                 </div>
-                <Button onClick={() => setShowAddStudentModal(true)} className="gap-2 rounded-2xl">
-                  <UserPlus className="w-4 h-4" />
-                  Admit Student
-                </Button>
+                {teacherRole !== 'Ordinary Teacher' && (
+                  <Button onClick={() => setShowAddStudentModal(true)} className="gap-2 rounded-2xl">
+                    <UserPlus className="w-4 h-4" />
+                    Admit Student
+                  </Button>
+                )}
               </div>
 
               <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-xl overflow-hidden">
@@ -1730,13 +1791,15 @@ export const TeacherDashboard = () => {
                             </td>
                             <td className="px-8 py-6 text-right">
                               <div className="flex items-center justify-end gap-2">
-                                <button 
-                                  onClick={() => deleteStudent(student.id)}
-                                  className="p-2 text-gray-400 hover:text-kenya-red transition-colors"
-                                  title="Remove Student"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                {teacherRole !== 'Ordinary Teacher' && (
+                                  <button 
+                                    onClick={() => deleteStudent(student.id)}
+                                    className="p-2 text-gray-400 hover:text-kenya-red transition-colors"
+                                    title="Remove Student"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>

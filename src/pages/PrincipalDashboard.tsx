@@ -279,6 +279,19 @@ export const PrincipalDashboard = () => {
             if (schoolData && isMounted) {
               setSchool(schoolData);
               localStorage.setItem('alakara_current_school', JSON.stringify(schoolData));
+
+              // Calculate suspension and expiry
+              const now = new Date();
+              const expiryDate = schoolData.subscription_expires_at ? new Date(schoolData.subscription_expires_at) : null;
+              
+              if (expiryDate) {
+                const diffTime = expiryDate.getTime() - now.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                setDaysToExpiry(diffDays);
+                setIsSuspended(schoolData.status === 'Suspended' || diffDays <= 0);
+              } else {
+                setIsSuspended(schoolData.status === 'Suspended');
+              }
             }
           } else if (!profile && isMounted) {
             // Fallback to localStorage if profile fetch fails
@@ -1336,75 +1349,81 @@ export const PrincipalDashboard = () => {
     setShowAddStudentModal(true);
   };
 
-  const handleAddClass = (e: FormEvent) => {
+  const handleAddClass = async (e: FormEvent) => {
     e.preventDefault();
-    const classId = editingClass ? editingClass.id : Math.random().toString(36).substr(2, 9);
+    setIsLoading(true);
     
-    if (editingClass) {
-      setClasses(classes.map(c => c.id === editingClass.id ? { ...editingClass, name: newClass.name, teacherId: newClass.teacherId, capacity: newClass.capacity } : c));
-      
-      // Sync with Supabase
-      supabase.from('classes').update({
-        name: newClass.name,
-        teacher_id: newClass.teacherId,
-        capacity: parseInt(String(newClass.capacity))
-      }).eq('id', editingClass.id).then(({ error }) => {
-        if (error) {
-          console.error('Error updating class in Supabase:', error);
-          alert('Failed to update class in Supabase. Local state updated.');
-        }
-      });
+    try {
+      if (editingClass) {
+        // Update class
+        const { error: classError } = await supabase.from('classes').update({
+          name: newClass.name,
+          teacher_id: newClass.teacherId,
+          capacity: parseInt(String(newClass.capacity))
+        }).eq('id', editingClass.id);
 
-      setEditingClass(null);
-    } else {
-      // Sync with Supabase first to get the generated ID
-      supabase.from('classes').insert({
-        name: newClass.name,
-        teacher_id: newClass.teacherId,
-        capacity: parseInt(String(newClass.capacity)),
-        school_id: school.id
-      }).select().single().then(({ data, error }) => {
-        if (error) {
-          console.error('Error creating class in Supabase:', error);
-          alert('Database error saving new class: ' + error.message);
-          return;
+        if (classError) throw classError;
+
+        // Handle streams
+        // 1. Delete existing streams for this class
+        await supabase.from('streams').delete().eq('class_id', editingClass.id);
+        
+        // 2. Insert new streams
+        if (newClass.streams.length > 0) {
+          const streamsToInsert = newClass.streams.map(s => ({
+            name: s,
+            class_id: editingClass.id,
+            school_id: school.id
+          }));
+          await supabase.from('streams').insert(streamsToInsert);
         }
 
-        if (data) {
+        setClasses(classes.map(c => c.id === editingClass.id ? { ...editingClass, name: newClass.name, teacherId: newClass.teacherId, capacity: newClass.capacity } : c));
+        setEditingClass(null);
+      } else {
+        // Create new class
+        const { data: classData, error: classError } = await supabase.from('classes').insert({
+          name: newClass.name,
+          teacher_id: newClass.teacherId,
+          capacity: parseInt(String(newClass.capacity)),
+          school_id: school.id
+        }).select().single();
+
+        if (classError) throw classError;
+
+        if (classData) {
+          // Insert streams
+          if (newClass.streams.length > 0) {
+            const streamsToInsert = newClass.streams.map(s => ({
+              name: s,
+              class_id: classData.id,
+              school_id: school.id
+            }));
+            await supabase.from('streams').insert(streamsToInsert);
+          }
+
           const cls = {
-            id: data.id,
+            id: classData.id,
             name: newClass.name,
             teacherId: newClass.teacherId,
             capacity: newClass.capacity
           };
           setClasses([...classes, cls]);
-          alert('Class added successfully!');
         }
-      });
-    }
-
-    // Handle streams
-    const existingStreams = streams.filter(s => s.classId === classId);
-    const newStreamNames = newClass.streams;
-    
-    // Remove streams not in new list
-    const streamsToRemove = existingStreams.filter(s => !newStreamNames.includes(s.name));
-    let updatedStreams = streams.filter(s => !streamsToRemove.find(r => r.id === s.id));
-    
-    // Add new streams
-    newStreamNames.forEach(name => {
-      if (!existingStreams.find(s => s.name === name)) {
-        updatedStreams.push({
-          id: Math.random().toString(36).substr(2, 9),
-          classId: classId,
-          name: name
-        });
       }
-    });
-    
-    setStreams(updatedStreams);
-    setNewClass({ name: '', teacherId: '', capacity: 40, streams: [] });
-    setShowAddClassModal(false);
+      
+      // Refresh streams
+      const { data: streamsData } = await supabase.from('streams').select('*').eq('school_id', school.id);
+      if (streamsData) setStreams(streamsData);
+      
+      setShowAddClassModal(false);
+      setNewClass({ name: '', teacherId: '', capacity: 40, streams: [] });
+    } catch (error) {
+      console.error('Error saving class:', error);
+      alert('Failed to save class to database.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const openEditClass = (cls: any) => {
@@ -1452,9 +1471,7 @@ export const PrincipalDashboard = () => {
           if (index === 0) return; // Skip header
           if (!row[0]) return; // Skip empty rows
 
-          const studentId = Math.random().toString(36).substr(2, 9);
           const studentData = {
-            id: studentId,
             name: String(row[0]).trim(),
             adm: String(row[1] || '').trim(),
             class: String(row[2] || 'Form 1').trim(),
@@ -1462,20 +1479,30 @@ export const PrincipalDashboard = () => {
             school_id: school.id
           };
 
-          newStudents.push(studentData);
           studentsToInsert.push(studentData);
         });
 
-        setStudents(newStudents);
+        setStudents([...students, ...studentsToInsert.map(s => ({ ...s, id: crypto.randomUUID() }))]);
         
         // Sync with Supabase
         if (studentsToInsert.length > 0) {
-          supabase.from('students').insert(studentsToInsert).then(({ error }) => {
+          supabase.from('students').insert(studentsToInsert).select().then(({ data, error }) => {
             if (error) {
               console.error('Error syncing bulk students:', error);
               alert('Partial sync failure: Some students could not be saved to Supabase.');
-            } else {
-              alert(`Successfully imported ${studentsToInsert.length} students and synced with Supabase!`);
+            } else if (data) {
+              // Update local state with real IDs from Supabase
+              setStudents([...students, ...data.map(s => ({
+                id: s.id,
+                name: s.name,
+                adm: s.admission_number || s.adm,
+                class: s.class,
+                status: 'Active',
+                gender: s.gender || 'Male',
+                profile_image: s.profile_image || null,
+                password: s.password
+              }))]);
+              alert(`Successfully imported ${data.length} students and synced with Supabase!`);
             }
           });
         }
@@ -2518,7 +2545,7 @@ export const PrincipalDashboard = () => {
 
         {/* Dashboard Content */}
         <div className="flex-1 overflow-y-auto p-8 relative">
-          {daysToExpiry !== null && daysToExpiry <= 15 && daysToExpiry > 0 && !isSuspended && (
+          {daysToExpiry !== null && daysToExpiry <= 14 && daysToExpiry > 0 && !isSuspended && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -2534,7 +2561,7 @@ export const PrincipalDashboard = () => {
                 </p>
               </div>
               <div className="bg-white/10 px-6 py-3 rounded-2xl font-black text-xl border border-white/20">
-                Expires: {new Date(school.subscriptionExpiresAt).toLocaleDateString()}
+                Expires: {new Date(school.subscription_expires_at).toLocaleDateString()}
               </div>
             </motion.div>
           )}
