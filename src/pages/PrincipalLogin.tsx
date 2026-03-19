@@ -74,56 +74,69 @@ export const PrincipalLogin = () => {
         if (!emailError) {
           data = emailData;
           authError = null;
+        } else {
+          // If both Auth attempts fail, check if the user exists in profiles
+          // but don't log them in without a session.
+          const { data: profileExists } = await supabase
+            .from('profiles')
+            .select('id, password, role')
+            .eq('phone', cleanPhone)
+            .eq('role', 'principal')
+            .maybeSingle();
+
+          if (profileExists && profileExists.password === password) {
+            // User exists in profiles but not in Auth (or Auth password mismatch)
+            // We should try to sign them up in Auth to sync them
+            const dummyEmail = `${cleanPhone}@boraschool.ke`;
+            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+              email: dummyEmail,
+              password: password,
+              options: {
+                data: {
+                  role: 'principal'
+                }
+              }
+            });
+
+            if (!signUpError && signUpData.user) {
+              data = { user: signUpData.user, session: signUpData.session };
+              authError = null;
+              
+              // Update the profile with the new user_id if it's different
+              await supabase
+                .from('profiles')
+                .update({ id: signUpData.user.id, user_id: signUpData.user.id })
+                .eq('phone', cleanPhone)
+                .eq('role', 'principal');
+            } else if (signUpError?.message?.includes('already registered')) {
+              // User exists in Auth but password was wrong (since signIn failed)
+              throw new Error('Invalid principal credentials');
+            } else {
+              throw authError || emailError;
+            }
+          } else {
+            throw authError || emailError;
+          }
         }
       }
 
       if (!authError && data.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-
-          if (profile) {
-            const { data: school } = await supabase
-              .from('schools')
-              .select('*')
-              .eq('id', profile.school_id)
-              .single();
-
-            if (school) {
-              if (profile.must_change_password) {
-                setPendingProfileId(profile.id);
-                setPendingSchool(school);
-                setShowForceChange(true);
-                return;
-              }
-              localStorage.setItem('alakara_current_school', JSON.stringify(school));
-              navigate('/principal/dashboard');
-              return;
-            }
-          }
-        }
-
-        // 2. Fallback: Check profiles table for custom credentials (phone based)
-        const { data: customProfile } = await supabase
+        const { data: profile } = await supabase
           .from('profiles')
           .select('*')
-          .eq('phone', cleanPhone)
-          .eq('password', password)
-          .eq('role', 'principal')
-          .maybeSingle();
+          .eq('id', data.user.id)
+          .single();
 
-        if (customProfile) {
+        if (profile) {
           const { data: school } = await supabase
             .from('schools')
             .select('*')
-            .eq('id', customProfile.school_id)
+            .eq('id', profile.school_id)
             .single();
 
           if (school) {
-            if (customProfile.must_change_password) {
-              setPendingProfileId(customProfile.id);
+            if (profile.must_change_password) {
+              setPendingProfileId(profile.id);
               setPendingSchool(school);
               setShowForceChange(true);
               return;
@@ -133,9 +146,10 @@ export const PrincipalLogin = () => {
             return;
           }
         }
+      }
 
-        setError('Invalid principal credentials or school not registered');
-      } catch (err: any) {
+      setError('Invalid principal credentials or school not registered');
+    } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
     } finally {
       setIsLoading(false);

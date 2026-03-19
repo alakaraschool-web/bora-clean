@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS students (
     name TEXT NOT NULL,
     email TEXT,
     phone TEXT, -- Added phone for students
+    gender TEXT DEFAULT 'Male',
+    profile_image TEXT,
     class TEXT,
     stream TEXT,
     parent_name TEXT,
@@ -58,6 +60,7 @@ CREATE TABLE IF NOT EXISTS exams (
     term TEXT,
     year TEXT,
     classes JSONB DEFAULT '[]',
+    streams JSONB DEFAULT '[]',
     subjects JSONB DEFAULT '[]',
     status TEXT DEFAULT 'Active',
     published BOOLEAN DEFAULT false,
@@ -150,6 +153,18 @@ CREATE TABLE IF NOT EXISTS success_stories (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 12. Messages Table
+CREATE TABLE IF NOT EXISTS messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    receiver_id UUID REFERENCES profiles(id) ON DELETE CASCADE, -- Can be null for broadcast
+    school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    type TEXT DEFAULT 'direct' CHECK (type IN ('direct', 'broadcast')),
+    target_role TEXT CHECK (target_role IN ('teacher', 'principal', 'super-admin')),
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Trigger to prevent teacher role changes
 CREATE OR REPLACE FUNCTION prevent_teacher_role_change()
 RETURNS TRIGGER AS $$
@@ -180,6 +195,7 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE streams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE success_stories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to get current user's role
 CREATE OR REPLACE FUNCTION get_my_role() RETURNS TEXT AS $$
@@ -360,3 +376,16 @@ USING (true);
 CREATE POLICY "Super-admin stories access" ON success_stories FOR ALL 
 USING (get_my_role() = 'super-admin')
 WITH CHECK (get_my_role() = 'super-admin');
+
+-- 12. Messages Policies
+CREATE POLICY "Messages access" ON messages FOR ALL 
+USING (
+    sender_id = auth.uid() OR 
+    receiver_id = auth.uid() OR 
+    (type = 'broadcast' AND target_role = get_my_role() AND school_id = get_my_school_id()) OR
+    get_my_role() = 'super-admin'
+)
+WITH CHECK (
+    sender_id = auth.uid() OR 
+    get_my_role() = 'super-admin'
+);

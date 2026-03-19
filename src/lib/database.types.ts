@@ -66,6 +66,7 @@ export interface Database {
           type: string | null
           principal_name: string | null
           status: string
+          subscription_expires_at: string | null
           created_at: string
         }
         Insert: {
@@ -77,6 +78,7 @@ export interface Database {
           type?: string | null
           principal_name?: string | null
           status?: string
+          subscription_expires_at?: string | null
           created_at?: string
         }
         Update: {
@@ -88,6 +90,7 @@ export interface Database {
           type?: string | null
           principal_name?: string | null
           status?: string
+          subscription_expires_at?: string | null
           created_at?: string
         }
       }
@@ -293,6 +296,7 @@ export interface Database {
           teacher_id: string | null
           title: string
           subject: string
+          category: string | null
           file_url: string | null
           file_type: string | null
           status: string
@@ -305,6 +309,7 @@ export interface Database {
           teacher_id?: string | null
           title: string
           subject: string
+          category?: string | null
           file_url?: string | null
           file_type?: string | null
           status?: string
@@ -317,6 +322,7 @@ export interface Database {
           teacher_id?: string | null
           title?: string
           subject?: string
+          category?: string | null
           file_url?: string | null
           file_type?: string | null
           status?: string
@@ -350,6 +356,41 @@ export interface Database {
           author_name?: string | null
           school_name?: string | null
           image_url?: string | null
+          created_at?: string
+        }
+      }
+      messages: {
+        Row: {
+          id: string
+          sender_id: string
+          receiver_id: string | null
+          content: string
+          type: string
+          target_role: string | null
+          school_id: string | null
+          is_read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          sender_id: string
+          receiver_id?: string | null
+          content: string
+          type: string
+          target_role?: string | null
+          school_id?: string | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          sender_id?: string
+          receiver_id?: string | null
+          content?: string
+          type?: string
+          target_role?: string | null
+          school_id?: string | null
+          is_read?: boolean
           created_at?: string
         }
       }

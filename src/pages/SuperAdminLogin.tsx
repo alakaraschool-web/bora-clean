@@ -57,104 +57,104 @@ export const SuperAdminLogin = () => {
     try {
       const sanitizedInput = username.trim();
       const isEmail = sanitizedInput.includes('@');
-      
-      // Ensure E.164 format for Supabase Auth if it's a phone number
       const cleanPhone = sanitizedInput.replace(/\s+/g, '');
-      const authPhone = cleanPhone.startsWith('+') ? cleanPhone : 
-                        cleanPhone.startsWith('0') ? `+254${cleanPhone.substring(1)}` : 
-                        `+${cleanPhone}`;
+      const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`;
+      const dummyEmail = isEmail ? sanitizedInput.toLowerCase() : `${cleanPhone}@superadmin.boraschool.ke`;
 
       // 1. Try Supabase Auth
-      let { data, error: authError } = await supabase.auth.signInWithPassword(
-        isEmail 
-          ? { email: sanitizedInput, password } 
-          : { phone: authPhone, password }
-      );
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: isEmail ? sanitizedInput : dummyEmail,
+        password: password
+      });
 
-      // Bootstrap logic: If Auth fails but hardcoded credentials match, try to signUp
-      if (authError && (
-        (sanitizedInput.toLowerCase() === 'bahatisolomon70@gmail.com' && password === 'Godalways95') ||
-        (sanitizedInput === 'admin' && password === 'admin123')
-      )) {
-        const bootstrapPhone = sanitizedInput.toLowerCase() === 'bahatisolomon70@gmail.com' 
-          ? '+254700000000' // Placeholder for Solomon
-          : '+254711111111'; // Placeholder for admin
-          
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          phone: bootstrapPhone,
-          password: password,
-          options: {
-            data: {
-              name: 'Solomon Isiya',
-              role: 'super-admin'
-            }
+      if (!authError && authData?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (profile && profile.role === 'super-admin') {
+          if (profile.must_change_password) {
+            setPendingProfileId(profile.id);
+            setShowForceChange(true);
+            return;
           }
+          navigate('/super-admin/dashboard');
+          return;
+        }
+        
+        await supabase.auth.signOut();
+        throw new Error('Unauthorized access. Only super admins can log in here.');
+      }
+
+      // 2. Fallback: Check profiles table directly
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .or(`email.eq.${sanitizedInput.toLowerCase()},phone.eq.${cleanPhone}`)
+        .eq('password', password)
+        .eq('role', 'super-admin')
+        .maybeSingle();
+
+      if (profile) {
+        // User exists in profiles but Auth failed, try to sign them up
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: profile.email || dummyEmail,
+          password: password,
+          options: { data: { role: 'super-admin', phone: profile.phone } }
         });
 
         if (!signUpError && signUpData.user) {
-          // Retry sign in after successful sign up
-          const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
-            phone: bootstrapPhone,
-            password: password
-          });
-          data = retryData;
-          authError = retryError;
+          await supabase.from('profiles').update({ user_id: signUpData.user.id }).eq('id', profile.id);
+          
+          if (profile.must_change_password) {
+            setPendingProfileId(profile.id);
+            setShowForceChange(true);
+            return;
+          }
+          navigate('/super-admin/dashboard');
+          return;
         }
       }
 
-      if (!authError && data.user) {
-        const { data: profile, error: profileError } = await supabase
+      // 3. Hardcoded Bootstrap Login (for initial setup)
+      if ((sanitizedInput.toLowerCase() === 'admin' || sanitizedInput.toLowerCase() === 'bahatisolomon70@gmail.com') && password === 'admin123') {
+        const { data: existingProfile } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', data.user.id)
-          .single();
+          .eq('email', sanitizedInput.toLowerCase())
+          .maybeSingle();
 
-        const emailToAuth = isEmail ? sanitizedInput : (data.user.email || authPhone);
-        const isSuperAdminEmail = 
-          emailToAuth.toLowerCase() === 'bahatisolomon70@gmail.com' || 
-          emailToAuth.toLowerCase() === 'admin@boraschool.ke';
-        
-        if (profileError || !profile || profile.role !== 'super-admin') {
-          // If profile doesn't exist or role is wrong, check if it's the requested super admin
-          if (isSuperAdminEmail || sanitizedInput === 'admin') {
-            // Create/Update profile if it doesn't exist or needs role update
-            const { error: insertError } = await supabase.from('profiles').upsert({
-              id: data.user.id,
-              user_id: data.user.id,
-              name: 'Solomon Isiya',
-              email: isSuperAdminEmail ? emailToAuth.toLowerCase() : (data.user.email || emailToAuth),
-              phone: data.user.phone || (isEmail ? null : authPhone),
-              role: 'super-admin'
-            });
-            
-            if (!insertError) {
-              navigate('/super-admin/dashboard');
-              return;
-            }
+        if (existingProfile) {
+          // Try to sign up if no Auth
+          const { data: signUpData } = await supabase.auth.signUp({
+            email: sanitizedInput.toLowerCase(),
+            password: password,
+            options: { data: { role: 'super-admin' } }
+          });
+          if (signUpData.user) {
+            await supabase.from('profiles').update({ user_id: signUpData.user.id }).eq('id', existingProfile.id);
           }
-          
-          await supabase.auth.signOut();
-          throw new Error('Unauthorized access. Only super admins can log in here.');
-        }
-
-        if (profile.must_change_password) {
-          setPendingProfileId(profile.id);
+          navigate('/super-admin/dashboard');
+        } else {
+          // Create profile
+          const profileId = crypto.randomUUID();
+          await supabase.from('profiles').insert({
+            id: profileId,
+            email: sanitizedInput.toLowerCase(),
+            role: 'super-admin',
+            name: 'System Admin',
+            password: password,
+            must_change_password: true
+          });
+          setPendingProfileId(profileId);
           setShowForceChange(true);
-          return;
         }
-        navigate('/super-admin/dashboard');
         return;
       }
 
-      // 2. Fallback to hardcoded for prototype if Supabase fails or user not found
-      if (sanitizedInput === 'admin' && password === 'admin123') {
-        navigate('/super-admin/dashboard');
-      } else if (sanitizedInput.toLowerCase() === 'bahatisolomon70@gmail.com' && password === 'Godalways95') {
-        // This is the requested super admin
-        navigate('/super-admin/dashboard');
-      } else {
-        setError(authError?.message || 'Invalid operator ID or access key');
-      }
+      setError('Invalid credentials');
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
     } finally {

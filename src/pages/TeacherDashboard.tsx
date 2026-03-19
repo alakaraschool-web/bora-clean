@@ -223,88 +223,39 @@ export const TeacherDashboard = () => {
   }, [currentTeacher?.avatar_url]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchTeacherData = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!isMounted) return;
-
-        let profileId = session?.user.id;
-        let profilePhone = session?.user.phone;
-
-        // Fallback: Check localStorage if no session
-        if (!profileId) {
-          const savedTeacher = localStorage.getItem('alakara_current_teacher');
-          if (savedTeacher) {
-            const teacherObj = JSON.parse(savedTeacher);
-            profileId = teacherObj.id;
-            profilePhone = teacherObj.phone;
-          }
-        }
-
-        if (profileId || profilePhone) {
-          const query = supabase.from('profiles').select('*');
-          if (profileId && !profileId.startsWith('demo-')) {
-            query.eq('id', profileId);
-          } else if (profilePhone) {
-            query.eq('phone', profilePhone).eq('role', 'teacher');
-          } else {
-            // If it's a demo teacher and no phone, just keep currentTeacher if we have it
-            if (currentTeacher && isMounted) {
-              setIsLoading(false);
-            }
-            return;
-          }
-
-          const { data: profile } = await query.single();
-          
-          if (profile && isMounted) {
-            setCurrentTeacher(profile);
-            localStorage.setItem('alakara_current_teacher', JSON.stringify(profile));
-          } else if (!profile && isMounted) {
-            // If no profile found but we have one in localStorage, use it as fallback
-            const savedTeacher = localStorage.getItem('alakara_current_teacher');
-            if (savedTeacher) {
-              setCurrentTeacher(JSON.parse(savedTeacher));
-            } else {
-              navigate('/teacher-login');
-            }
-          }
-        } else if (isMounted) {
-          navigate('/teacher-login');
-        }
-      } catch (error) {
-        console.error('Teacher auth error:', error);
-        // Fallback to localStorage on error
-        const savedTeacher = localStorage.getItem('alakara_current_teacher');
-        if (savedTeacher && isMounted) {
-          setCurrentTeacher(JSON.parse(savedTeacher));
-        } else if (isMounted) {
-          navigate('/teacher-login');
-        }
-      } finally {
-        if (isMounted) setIsLoading(false);
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        navigate('/teacher-login');
+        return;
       }
+
+      // Fetch teacher data based on session
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile && profile.role === 'teacher') {
+        setCurrentTeacher(profile);
+        localStorage.setItem('alakara_current_teacher', JSON.stringify(profile));
+      } else {
+        navigate('/teacher-login');
+      }
+      setIsLoading(false);
     };
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('alakara_current_teacher');
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
         navigate('/teacher-login');
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (session) fetchTeacherData();
       }
     });
 
-    fetchTeacherData();
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   useEffect(() => {
@@ -347,12 +298,17 @@ export const TeacherDashboard = () => {
           supabase.from('students').select('*').eq('school_id', schoolId),
           supabase.from('classes').select('*').eq('school_id', schoolId),
           supabase.from('exams').select('*').eq('school_id', schoolId),
-          supabase.from('streams').select('*').eq('school_id', schoolId)
+          supabase.from('streams').select('*, classes!inner(school_id)').eq('classes.school_id', schoolId)
         ]);
 
         if (studentsData) {
-          setAllStudents(studentsData);
-          localStorage.setItem('alakara_students', JSON.stringify(studentsData));
+          const formattedStudents = studentsData.map(s => ({
+            ...s,
+            adm: s.admission_number || s.adm,
+            status: s.status || 'Active'
+          }));
+          setAllStudents(formattedStudents);
+          localStorage.setItem('alakara_students', JSON.stringify(formattedStudents));
         }
 
         if (classesData) {
@@ -361,8 +317,13 @@ export const TeacherDashboard = () => {
         }
 
         if (streamsData) {
-          setStreams(streamsData);
-          localStorage.setItem('alakara_streams', JSON.stringify(streamsData));
+          const formattedStreams = streamsData.map(s => ({
+            ...s,
+            classId: s.class_id,
+            schoolId: schoolId
+          }));
+          setStreams(formattedStreams);
+          localStorage.setItem('alakara_streams', JSON.stringify(formattedStreams));
         }
 
         if (examsData) {
@@ -540,7 +501,7 @@ export const TeacherDashboard = () => {
     try {
       const { data, error } = await supabase.from('students').insert({
         name: newStudent.name,
-        adm: newStudent.adm,
+        admission_number: newStudent.adm,
         class: managedClass.name,
         gender: newStudent.gender || 'Male',
         school_id: currentTeacher.school_id,
@@ -550,12 +511,17 @@ export const TeacherDashboard = () => {
       if (error) throw error;
 
       if (data) {
-        setAllStudents([data, ...allStudents]);
+        const student = {
+          ...data,
+          adm: data.admission_number || data.adm
+        };
+        setAllStudents([student, ...allStudents]);
         setShowAddStudentModal(false);
         setNewStudent({ name: '', adm: '', gender: 'Male', streamId: '' });
         
         // Update local storage for persistence
-        localStorage.setItem('alakara_students', JSON.stringify([data, ...allStudents]));
+        const updatedStudents = [student, ...allStudents];
+        localStorage.setItem('alakara_students', JSON.stringify(updatedStudents));
         
         addNotification({
           title: 'Student Admitted',
@@ -718,7 +684,6 @@ export const TeacherDashboard = () => {
       const supabaseMarks = newMarks
         .filter(m => m.examId === activeExam.id && m.subject === subject)
         .map(m => ({
-          id: m.id || `${activeExam.id}-${m.studentId}-${subject}`,
           exam_id: m.examId,
           student_id: m.studentId,
           subject: m.subject,
@@ -726,7 +691,7 @@ export const TeacherDashboard = () => {
           grade: m.grade
         }));
 
-      const { error } = await supabase.from('marks').upsert(supabaseMarks);
+      const { error } = await supabase.from('marks').upsert(supabaseMarks, { onConflict: 'exam_id,student_id,subject' });
       if (error) throw error;
 
       addLog(isFinal ? 'Submit Marks' : 'Save Draft', `Updated marks for ${activeExam.title} (${subject})`);

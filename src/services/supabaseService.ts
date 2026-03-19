@@ -298,5 +298,26 @@ export const supabaseService = {
       .delete()
       .eq('id', id);
     if (error) throw error;
+  },
+
+  // Messages
+  async getMessages(schoolId: string, role: string, userId: string) {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*, sender:profiles!sender_id(name, role)')
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId},and(type.eq.broadcast,target_role.eq.${role},school_id.eq.${schoolId})`)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data;
+  },
+
+  async sendMessage(message: any) {
+    const { data, error } = await supabase
+      .from('messages')
+      .insert(message)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 };

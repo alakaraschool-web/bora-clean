@@ -38,57 +38,62 @@ export const StudentDashboard = () => {
   const [isSuspended, setIsSuspended] = useState(false);
 
   useEffect(() => {
-    const fetchStudentData = async () => {
+    const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      let profileId = session?.user.id;
-      let profilePhone = session?.user.phone;
-
-      // Fallback: Check localStorage if no session
-      if (!profileId && currentStudent) {
-        profileId = currentStudent.id;
-        profilePhone = currentStudent.phone;
+      
+      if (!session) {
+        navigate('/student-login');
+        return;
       }
 
-      if (profileId || profilePhone) {
-        const query = supabase.from('profiles').select('*');
-        if (profileId && !profileId.startsWith('demo-')) {
-          query.eq('id', profileId);
-        } else if (profilePhone) {
-          query.eq('phone', profilePhone).eq('role', 'student');
-        } else {
-          return;
-        }
+      // Fetch student data based on session
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
 
-        const { data: profile } = await query.single();
-        
-        if (profile) {
-          const { data: studentData } = await supabase
-            .from('students')
-            .select('*')
-            .eq('id', profile.student_id)
-            .single();
-          
-          if (studentData) {
-            setCurrentStudent(studentData);
-            localStorage.setItem('alakara_current_student', JSON.stringify(studentData));
-          }
+      if (profile && profile.role === 'student') {
+        const { data: studentData } = await supabase
+          .from('students')
+          .select('*')
+          .eq('id', profile.student_id || profile.id)
+          .single();
+
+        if (studentData) {
+          setCurrentStudent(studentData);
+          localStorage.setItem('alakara_current_student', JSON.stringify(studentData));
+        } else {
+          navigate('/student-login');
         }
-      } else if (!currentStudent) {
+      } else {
         navigate('/student-login');
       }
     };
-    fetchStudentData();
+
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        navigate('/student-login');
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   useEffect(() => {
     const checkStatus = async () => {
       if (!currentStudent?.school_id) return;
       
-      const allSchools = JSON.parse(localStorage.getItem('alakara_schools') || '[]');
-      const school = allSchools.find((s: any) => s.id === currentStudent.school_id);
+      const { data: school } = await supabase
+        .from('schools')
+        .select('*')
+        .eq('id', currentStudent.school_id)
+        .single();
       
       if (school) {
-        const expiryDate = school.subscriptionExpiresAt ? new Date(school.subscriptionExpiresAt) : null;
+        const expiryDate = school.subscription_expires_at ? new Date(school.subscription_expires_at) : null;
         const now = new Date();
         const isExpired = expiryDate ? expiryDate < now : false;
         setIsSuspended(school.status === 'Suspended' || isExpired);
@@ -96,7 +101,7 @@ export const StudentDashboard = () => {
     };
 
     checkStatus();
-    const interval = setInterval(checkStatus, 5000);
+    const interval = setInterval(checkStatus, 10000);
     return () => clearInterval(interval);
   }, [currentStudent?.school_id]);
 

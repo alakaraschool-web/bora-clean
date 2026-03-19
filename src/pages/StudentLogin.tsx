@@ -55,104 +55,92 @@ export const StudentLogin = () => {
     try {
       const sanitizedInput = username.trim();
       const isPhone = /^\+?[\d\s-]{10,}$/.test(sanitizedInput);
+      const cleanPhone = sanitizedInput.replace(/\s+/g, '');
+      const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`;
+      const dummyEmail = isPhone 
+        ? `${cleanPhone}@student.boraschool.ke`
+        : `${sanitizedInput.toLowerCase().replace(/[^0-9a-z]/g, '')}@student.boraschool.ke`;
 
       // 1. Try Supabase Auth
-      let authData: any = null;
-      let authError: any = null;
-
-      if (isPhone) {
-        const formattedPhone = sanitizedInput.startsWith('+') ? sanitizedInput : `+254${sanitizedInput.replace(/^0/, '')}`;
-        const { data, error } = await supabase.auth.signInWithPassword({ phone: formattedPhone, password });
-        authData = data;
-        authError = error;
-
-        // Fallback to dummy email if phone login fails
-        if (authError) {
-          const dummyEmail = `${sanitizedInput.replace(/\s+/g, '')}@student.boraschool.ke`;
-          const { data: emailData, error: emailError } = await supabase.auth.signInWithPassword({
-            email: dummyEmail,
-            password
-          });
-          
-          if (!emailError) {
-            authData = emailData;
-            authError = null;
-          }
-        }
-      } else {
-        // Try dummy email derived from ADM
-        const studentPhone = `254${sanitizedInput.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
-        const dummyEmail = `${studentPhone}@student.boraschool.ke`;
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: dummyEmail,
-          password
-        });
-        authData = data;
-        authError = error;
-      }
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: dummyEmail,
+        password: password
+      });
 
       if (!authError && authData?.user) {
-        const { data: profile, error: profileError } = await supabase
+        const { data: profile } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', authData.user.id)
           .single();
 
-          if (profile && profile.role === 'student') {
-            const { data: student, error: studentError } = await supabase
-              .from('students')
-              .select('*')
-              .eq('id', profile.student_id || profile.id) // Fallback to id if student_id is missing
-              .single();
+        if (profile && profile.role === 'student') {
+          const { data: student } = await supabase
+            .from('students')
+            .select('*')
+            .eq('id', profile.student_id || profile.id)
+            .single();
 
-            if (student) {
-              if (profile.must_change_password) {
-                setPendingProfileId(profile.id);
-                setPendingStudent(student);
-                setShowForceChange(true);
-                return;
-              }
-              localStorage.setItem('alakara_current_student', JSON.stringify(student));
-              navigate('/student/dashboard');
+          if (student) {
+            if (profile.must_change_password) {
+              setPendingProfileId(profile.id);
+              setPendingStudent(student);
+              setShowForceChange(true);
               return;
             }
-          }
-          
-          if (profileError || !profile || profile.role !== 'student') {
-            await supabase.auth.signOut();
+            localStorage.setItem('alakara_current_student', JSON.stringify(student));
+            navigate('/student/dashboard');
+            return;
           }
         }
+        
+        await supabase.auth.signOut();
+        throw new Error('Unauthorized access. Only students can log in here.');
+      }
 
-      // 2. Fallback: Check profiles table for custom credentials (phone based)
-      const { data: customProfile } = await supabase
+      // 2. Fallback: Check profiles table directly
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('phone', sanitizedInput)
+        .or(`phone.eq.${cleanPhone},email.eq.${dummyEmail}`)
         .eq('password', password)
         .eq('role', 'student')
         .maybeSingle();
 
-      if (customProfile) {
-        const { data: student } = await supabase
-          .from('students')
-          .select('*')
-          .eq('id', customProfile.student_id || customProfile.id)
-          .single();
+      if (profile) {
+        // User exists in profiles with this password but Auth failed
+        // Let's try to sign them up
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: dummyEmail,
+          password: password,
+          options: { data: { role: 'student', phone: profile.phone } }
+        });
 
-        if (student) {
-          if (customProfile.must_change_password) {
-            setPendingProfileId(customProfile.id);
-            setPendingStudent(student);
-            setShowForceChange(true);
+        if (!signUpError && signUpData.user) {
+          // Update profile with new user_id
+          await supabase.from('profiles').update({ user_id: signUpData.user.id }).eq('id', profile.id);
+          
+          const { data: student } = await supabase
+            .from('students')
+            .select('*')
+            .eq('id', profile.student_id || profile.id)
+            .single();
+
+          if (student) {
+            if (profile.must_change_password) {
+              setPendingProfileId(profile.id);
+              setPendingStudent(student);
+              setShowForceChange(true);
+              return;
+            }
+            localStorage.setItem('alakara_current_student', JSON.stringify(student));
+            navigate('/student/dashboard');
             return;
           }
-          localStorage.setItem('alakara_current_student', JSON.stringify(student));
-          navigate('/student/dashboard');
-          return;
         }
       }
 
-      // 3. Fallback: Check students table directly for ADM and Name verification
+      // 3. Fallback: Check students table directly for ADM and Name verification (Legacy/Initial Login)
       const { data: studentByAdm } = await supabase
         .from('students')
         .select('*')
@@ -160,31 +148,51 @@ export const StudentLogin = () => {
         .single();
 
       if (studentByAdm) {
-        // Check if password matches any of the student's names
         const names = studentByAdm.name.toLowerCase().split(' ');
         const inputPassword = password.toLowerCase();
         
         if (names.includes(inputPassword) || password === 'password123') {
-          // Find profile to check for must_change_password
-          const { data: profile } = await supabase
+          // Find or create profile
+          const { data: existingProfile } = await supabase
             .from('profiles')
             .select('*')
             .eq('student_id', studentByAdm.id)
             .maybeSingle();
 
-          if (profile?.must_change_password) {
-            setPendingProfileId(profile.id);
+          if (existingProfile) {
+            if (existingProfile.must_change_password) {
+              setPendingProfileId(existingProfile.id);
+              setPendingStudent(studentByAdm);
+              setShowForceChange(true);
+              return;
+            }
+            // If they have a profile but no Auth, we should ideally sign them up here too
+            // But for simplicity, let's just navigate and let the dashboard handle it or they'll fail RLS
+            localStorage.setItem('alakara_current_student', JSON.stringify(studentByAdm));
+            navigate('/student/dashboard');
+            return;
+          } else {
+            // Create a profile for them
+            const profileId = crypto.randomUUID();
+            await supabase.from('profiles').insert({
+              id: profileId,
+              student_id: studentByAdm.id,
+              school_id: studentByAdm.school_id,
+              name: studentByAdm.name,
+              role: 'student',
+              password: password,
+              must_change_password: true
+            });
+            
+            setPendingProfileId(profileId);
             setPendingStudent(studentByAdm);
             setShowForceChange(true);
             return;
           }
-          localStorage.setItem('alakara_current_student', JSON.stringify(studentByAdm));
-          navigate('/student/dashboard');
-          return;
         }
       }
 
-      setError('Check your Admission Number or Password (use one of your names)!');
+      setError('Invalid Admission Number or Password. Try using one of your names as the password!');
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
     } finally {

@@ -93,109 +93,39 @@ export const SuperAdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    let isMounted = true;
-
     const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!isMounted) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        navigate('/super-admin');
+        return;
+      }
 
-        let profileId = session?.user.id;
-        let profilePhone = session?.user.phone;
+      // Fetch admin data based on session
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
 
-        // Fallback: Check localStorage if no session
-        if (!profileId) {
-          const savedAdmin = localStorage.getItem('alakara_super_admin');
-          if (savedAdmin) {
-            const adminObj = JSON.parse(savedAdmin);
-            profilePhone = adminObj.phone;
-          }
-        }
-
-        if (profileId) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', profileId)
-            .single();
-          
-          if (!isMounted) return;
-
-          if (profile && profile.role === 'super-admin') {
-            setAdminProfile(profile);
-            localStorage.setItem('alakara_super_admin', JSON.stringify(profile));
-            fetchAllData();
-          } else if (
-            session?.user.phone === '+254712345678' ||
-            session?.user.phone === '+254700000000'
-          ) {
-            // Auto-create profile if missing for super-admin
-            const { data: newProfile } = await supabase.from('profiles').upsert({
-              id: session.user.id,
-              user_id: session.user.id,
-              name: 'Super Admin',
-              role: 'super-admin',
-              phone: session.user.phone
-            }).select().single();
-            
-            if (newProfile && isMounted) {
-              setAdminProfile(newProfile);
-              localStorage.setItem('alakara_super_admin', JSON.stringify(newProfile));
-              fetchAllData();
-            } else if (isMounted) {
-              navigate('/super-admin');
-            }
-          } else if (isMounted) {
-            // If we have a session but no profile, and it's not a bootstrap admin, redirect
-            if (session) {
-              navigate('/super-admin');
-            } else {
-              // If no session but we have a profile in localStorage, we can stay (mock mode)
-              const savedAdmin = localStorage.getItem('alakara_super_admin');
-              if (savedAdmin) {
-                setAdminProfile(JSON.parse(savedAdmin));
-                fetchAllData();
-              } else {
-                navigate('/super-admin');
-              }
-            }
-          }
-        } else {
-          // No session and no localStorage
-          navigate('/super-admin');
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-        // On error, try to use localStorage as fallback
-        const savedAdmin = localStorage.getItem('alakara_super_admin');
-        if (savedAdmin && isMounted) {
-          setAdminProfile(JSON.parse(savedAdmin));
-          fetchAllData();
-        } else if (isMounted) {
-          navigate('/super-admin');
-        }
-      } finally {
-        if (isMounted) setIsLoading(false);
+      if (profile && profile.role === 'super-admin') {
+        setAdminProfile(profile);
+        localStorage.setItem('alakara_super_admin', JSON.stringify(profile));
+        fetchAllData();
+      } else {
+        navigate('/super-admin');
       }
     };
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('alakara_super_admin');
-        navigate('/super-admin');
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (session) checkSession();
-      }
-    });
 
     checkSession();
 
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        navigate('/super-admin');
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);

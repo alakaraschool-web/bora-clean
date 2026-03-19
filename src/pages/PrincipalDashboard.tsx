@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
+import { useState, useEffect, useRef, FormEvent, ChangeEvent } from 'react';
 import { motion } from 'motion/react';
 import { 
   GraduationCap, 
@@ -44,7 +44,10 @@ import {
   Edit3,
   Printer,
   Save,
-  Loader2
+  Loader2,
+  Send,
+  MessageSquare,
+  FileText
 } from 'lucide-react';
 import { NotificationBell, addNotification } from '../components/NotificationBell';
 import { useNavigate } from 'react-router-dom';
@@ -87,10 +90,21 @@ export const PrincipalDashboard = () => {
   const [isSuspended, setIsSuspended] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [daysToExpiry, setDaysToExpiry] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'students' | 'academic' | 'settings' | 'classes' | 'users'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'students' | 'academic' | 'settings' | 'classes' | 'users' | 'messaging' | 'resources'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [managingClass, setManagingClass] = useState<any>(null);
   const [academicSubTab, setAcademicSubTab] = useState<'overview' | 'create-exam' | 'learning-area' | 'grading' | 'analysis' | 'reports' | 'results-processing' | 'academic-settings' | 'merit-list' | 'marks-entry'>('overview');
+  const [messages, setMessages] = useState<any[]>([]);
+  const [examMaterials, setExamMaterials] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState({ content: '', receiverId: '', type: 'direct' as 'direct' | 'broadcast', targetRole: 'teacher' });
+  const [isUploadingMaterial, setIsUploadingMaterial] = useState(false);
+  const [newMaterial, setNewMaterial] = useState({ title: '', subject: '', category: 'Revision' });
+  const [resourceFilterSubject, setResourceFilterSubject] = useState('All');
+  const [resourceFilterCategory, setResourceFilterCategory] = useState('All');
+  const [resourceSearchQuery, setResourceSearchQuery] = useState('');
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [messageFilter, setMessageFilter] = useState<'all' | 'unread'>('all');
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [topXCount, setTopXCount] = useState(10);
   const [topXSubjectChampionsCount, setTopXSubjectChampionsCount] = useState(1);
   const [selectedProcessingClass, setSelectedProcessingClass] = useState('All');
@@ -150,6 +164,7 @@ export const PrincipalDashboard = () => {
   const [showEditMarksModal, setShowEditMarksModal] = useState(false);
   const [selectedMarksStudent, setSelectedMarksStudent] = useState<any>(null);
   const [editingMarks, setEditingMarks] = useState<any>({}); // {examId: score}
+  const materialFileRef = useRef<HTMLInputElement>(null);
 
   const [newExam, setNewExam] = useState({
     title: '',
@@ -165,6 +180,8 @@ export const PrincipalDashboard = () => {
     selectedStudentId: '',
     selectedClass: 'All',
     selectedExamIds: [] as string[],
+    term: '2',
+    year: '2026',
     includeAverages: true,
     includeGrades: true,
     graphType: 'bar' as 'bar' | 'line',
@@ -241,105 +258,69 @@ export const PrincipalDashboard = () => {
   }, [hasUnsavedChanges]);
 
   useEffect(() => {
-    let isMounted = true;
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        navigate('/principal-login');
+        return;
+      }
 
-    const fetchSchoolData = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
+      // Fetch principal data based on session
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile && profile.role === 'principal') {
+        setPrincipalProfile(profile);
+        const { data: schoolData } = await supabase
+          .from('schools')
+          .select('*')
+          .eq('id', profile.school_id)
+          .single();
         
-        if (!isMounted) return;
+        if (schoolData) {
+          setSchool(schoolData);
+          localStorage.setItem('alakara_current_school', JSON.stringify(schoolData));
 
-        let profileId = session?.user.id;
-        let profileEmail = session?.user.email;
-
-        // Fallback: Check localStorage if no session
-        if (!profileId) {
-          const savedSchool = localStorage.getItem('alakara_current_school');
-          if (savedSchool) {
-            const schoolObj = JSON.parse(savedSchool);
-            profileEmail = schoolObj.principalEmail;
-          }
-        }
-
-        if (profileId) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', profileId)
-            .single();
+          // Calculate suspension and expiry
+          const now = new Date();
+          const expiryDate = schoolData.subscription_expires_at ? new Date(schoolData.subscription_expires_at) : null;
           
-          if (profile && isMounted) {
-            setPrincipalProfile(profile);
-            const { data: schoolData } = await supabase
-              .from('schools')
-              .select('*')
-              .eq('id', profile.school_id)
-              .single();
-            
-            if (schoolData && isMounted) {
-              setSchool(schoolData);
-              localStorage.setItem('alakara_current_school', JSON.stringify(schoolData));
+          if (expiryDate) {
+            const diffTime = expiryDate.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            setDaysToExpiry(diffDays);
+            setIsSuspended(schoolData.status === 'Suspended' || diffDays <= 0);
 
-              // Calculate suspension and expiry
-              const now = new Date();
-              const expiryDate = schoolData.subscription_expires_at ? new Date(schoolData.subscription_expires_at) : null;
-              
-              if (expiryDate) {
-                const diffTime = expiryDate.getTime() - now.getTime();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                setDaysToExpiry(diffDays);
-                setIsSuspended(schoolData.status === 'Suspended' || diffDays <= 0);
-              } else {
-                setIsSuspended(schoolData.status === 'Suspended');
-              }
+            // Add notification for 15 days before expiry
+            if (diffDays > 0 && diffDays <= 15) {
+              addNotification({
+                title: 'Subscription Expiring Soon',
+                message: `Your school subscription will expire in ${diffDays} day${diffDays === 1 ? '' : 's'}. Please renew to avoid service interruption.`,
+                type: 'warning'
+              });
             }
-          } else if (!profile && isMounted) {
-            // Fallback to localStorage if profile fetch fails
-            const savedSchool = localStorage.getItem('alakara_current_school');
-            if (savedSchool) {
-              setSchool(JSON.parse(savedSchool));
-            } else {
-              navigate('/principal-login');
-            }
-          }
-        } else if (isMounted) {
-          // Check if we have a school in localStorage even without a session
-          const savedSchool = localStorage.getItem('alakara_current_school');
-          if (savedSchool) {
-            setSchool(JSON.parse(savedSchool));
           } else {
-            navigate('/principal-login');
+            setIsSuspended(schoolData.status === 'Suspended');
           }
         }
-      } catch (error) {
-        console.error('Principal auth error:', error);
-        const savedSchool = localStorage.getItem('alakara_current_school');
-        if (savedSchool && isMounted) {
-          setSchool(JSON.parse(savedSchool));
-        } else if (isMounted) {
-          navigate('/principal-login');
-        }
-      } finally {
-        if (isMounted) setIsAuthLoading(false);
+      } else {
+        navigate('/principal-login');
       }
     };
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('alakara_current_school');
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
         navigate('/principal-login');
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (session) fetchSchoolData();
       }
     });
 
-    fetchSchoolData();
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   useEffect(() => {
@@ -362,6 +343,20 @@ export const PrincipalDashboard = () => {
             gender: s.gender || 'Male',
             profile_image: s.profile_image || null,
             password: s.password
+          })));
+        }
+
+        // Fetch Streams
+        const { data: streamsData } = await supabase
+          .from('streams')
+          .select('*, classes!inner(school_id)')
+          .eq('classes.school_id', school.id);
+        if (streamsData) {
+          setStreams(streamsData.map(s => ({
+            id: s.id,
+            name: s.name,
+            classId: s.class_id,
+            schoolId: school.id // We know it's this school
           })));
         }
 
@@ -454,6 +449,21 @@ export const PrincipalDashboard = () => {
             setGradingSystem(settingsData.grading_system);
           }
         }
+
+        // Fetch Messages
+        const { data: messagesData } = await supabase
+          .from('messages')
+          .select('*, sender:profiles!sender_id(name, role)')
+          .or(`sender_id.eq.${principalProfile?.id},receiver_id.eq.${principalProfile?.id},and(type.eq.broadcast,target_role.eq.principal,school_id.eq.${school.id})`)
+          .order('created_at', { ascending: true });
+        if (messagesData) setMessages(messagesData);
+
+        // Fetch Exam Materials
+        const { data: materialsData } = await supabase
+          .from('exam_materials')
+          .select('*, profiles(name)')
+          .eq('school_id', school.id);
+        if (materialsData) setExamMaterials(materialsData);
       } catch (error) {
         console.error('Error loading data from Supabase:', error);
       }
@@ -564,7 +574,6 @@ export const PrincipalDashboard = () => {
         const supabaseMarks = stagedMarks
           .filter(m => m.examId === examId)
           .map(m => ({
-            id: m.id || `${examId}-${m.studentId}-${m.subject}`,
             exam_id: examId,
             student_id: m.studentId,
             subject: m.subject,
@@ -572,7 +581,7 @@ export const PrincipalDashboard = () => {
             created_at: new Date().toISOString()
           }));
 
-        const { error } = await supabase.from('marks').upsert(supabaseMarks);
+        const { error } = await supabase.from('marks').upsert(supabaseMarks, { onConflict: 'exam_id,student_id,subject' });
         if (error) throw error;
 
         setMarks(stagedMarks);
@@ -848,11 +857,11 @@ export const PrincipalDashboard = () => {
     doc.setFont('helvetica', 'bold');
     doc.text(`Adm No : ${student.adm}`, margin + 5, detailsY + 7);
     doc.text(`Full Name : ${student.name.toUpperCase()}`, margin + 60, detailsY + 7);
-    doc.text(`Kpsea : `, margin + 140, detailsY + 7);
+    doc.text(`Kpsea : ${student.kpsea_no || '--'}`, margin + 140, detailsY + 7);
 
-    doc.text(`UPI No : A23WERTYST`, margin + 5, detailsY + 14);
-    doc.text(`Grade : ${student.class} A 2026`, margin + 60, detailsY + 14);
-    doc.text(`Term : 2`, margin + 140, detailsY + 14);
+    doc.text(`UPI No : ${student.upi_no || '--'}`, margin + 5, detailsY + 14);
+    doc.text(`Grade : ${student.class} ${student.stream || ''} ${reportConfig.year}`, margin + 60, detailsY + 14);
+    doc.text(`Term : ${reportConfig.term}`, margin + 140, detailsY + 14);
 
     doc.text(`House : `, margin + 5, detailsY + 21);
     doc.text(`Rank : ${classPos} (out of ${classStudents.length})`, margin + 60, detailsY + 21);
@@ -945,7 +954,7 @@ export const PrincipalDashboard = () => {
     doc.text('PRINCIPAL: _________________________________________________________________________', margin, remarksY + 15);
     
     doc.text(`Parent's Signature: _________________________________________________________________`, margin, remarksY + 30);
-    doc.text(`Next Term Begins On: Monday, 04 May 2026`, margin, remarksY + 40);
+    doc.text(`Next Term Begins On: ${schoolSettings.next_term_begins || 'TBA'}`, margin, remarksY + 40);
     doc.text(`Print Date: ${new Date().toLocaleDateString()}`, pageWidth - margin - 40, remarksY + 40);
     
     centerText(schoolSettings.motto || 'STRIVE FOR EXCELLENCE', remarksY + 50, 10, 'bold');
@@ -1218,7 +1227,7 @@ export const PrincipalDashboard = () => {
       // Sync with Supabase
       supabase.from('students').update({
         name: newStudent.name,
-        adm: newStudent.adm,
+        admission_number: newStudent.adm,
         class: newStudent.class,
         gender: newStudent.gender,
         status: newStudent.status
@@ -1268,7 +1277,7 @@ export const PrincipalDashboard = () => {
           const { data: existingStudent } = await supabase
             .from('students')
             .select('id')
-            .eq('adm', newStudent.adm)
+            .eq('admission_number', newStudent.adm)
             .maybeSingle();
           
           if (existingStudent) {
@@ -1290,7 +1299,7 @@ export const PrincipalDashboard = () => {
         const { data: studentData, error: studentError } = await supabase.from('students').upsert({
           id: authUserId, // Use same ID for consistency
           name: newStudent.name,
-          adm: newStudent.adm,
+          admission_number: newStudent.adm,
           class: newStudent.class,
           gender: newStudent.gender,
           status: 'Active',
@@ -1372,8 +1381,7 @@ export const PrincipalDashboard = () => {
         if (newClass.streams.length > 0) {
           const streamsToInsert = newClass.streams.map(s => ({
             name: s,
-            class_id: editingClass.id,
-            school_id: school.id
+            class_id: editingClass.id
           }));
           await supabase.from('streams').insert(streamsToInsert);
         }
@@ -1396,8 +1404,7 @@ export const PrincipalDashboard = () => {
           if (newClass.streams.length > 0) {
             const streamsToInsert = newClass.streams.map(s => ({
               name: s,
-              class_id: classData.id,
-              school_id: school.id
+              class_id: classData.id
             }));
             await supabase.from('streams').insert(streamsToInsert);
           }
@@ -1413,8 +1420,18 @@ export const PrincipalDashboard = () => {
       }
       
       // Refresh streams
-      const { data: streamsData } = await supabase.from('streams').select('*').eq('school_id', school.id);
-      if (streamsData) setStreams(streamsData);
+      const { data: streamsData } = await supabase
+        .from('streams')
+        .select('*, classes!inner(school_id)')
+        .eq('classes.school_id', school.id);
+      if (streamsData) {
+        setStreams(streamsData.map(s => ({
+          id: s.id,
+          name: s.name,
+          classId: s.class_id,
+          schoolId: school.id
+        })));
+      }
       
       setShowAddClassModal(false);
       setNewClass({ name: '', teacherId: '', capacity: 40, streams: [] });
@@ -1668,6 +1685,86 @@ export const PrincipalDashboard = () => {
     } catch (error: any) {
       console.error('Error creating exam:', error);
       alert('Failed to create exam: ' + error.message);
+    }
+  };
+
+  const handleSendMessage = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.content.trim()) return;
+
+    try {
+      const messageData = {
+        sender_id: principalProfile.id,
+        receiver_id: newMessage.type === 'direct' ? newMessage.receiverId : null,
+        content: newMessage.content,
+        type: newMessage.type,
+        target_role: newMessage.type === 'broadcast' ? newMessage.targetRole : null,
+        school_id: school.id
+      };
+
+      const { data, error } = await supabase.from('messages').insert(messageData).select('*, sender:profiles!sender_id(name, role)').single();
+      if (error) throw error;
+
+      setMessages([...messages, data]);
+      setNewMessage({ ...newMessage, content: '' });
+      addNotification({ title: 'Message Sent', message: 'Your message has been delivered.', type: 'success' });
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      alert('Failed to send message: ' + error.message);
+    }
+  };
+
+  const handleUploadMaterial = async (e: FormEvent) => {
+    e.preventDefault();
+    const file = materialFileRef.current?.files?.[0];
+    if (!file) {
+      addNotification({ title: 'Upload Error', message: 'Please select a file to upload.', type: 'error' });
+      return;
+    }
+
+    setIsUploadingMaterial(true);
+    try {
+      const fileUrl = await supabaseService.uploadExamMaterial(file);
+      
+      const materialData = {
+        school_id: school.id,
+        teacher_id: principalProfile.id,
+        title: newMaterial.title,
+        subject: newMaterial.subject,
+        category: newMaterial.category,
+        file_url: fileUrl,
+        file_type: file.type,
+        status: 'Approved', // Principal uploads are auto-approved
+        visibility: 'Public'
+      };
+
+      const { data, error } = await supabase.from('exam_materials').insert(materialData).select('*, profiles(name)').single();
+      if (error) throw error;
+
+      setExamMaterials([data, ...examMaterials]);
+      setNewMaterial({ title: '', subject: '', category: 'Revision' });
+      if (materialFileRef.current) materialFileRef.current.value = '';
+      addNotification({ title: 'Resource Uploaded', message: 'Exam material has been saved successfully.', type: 'success' });
+    } catch (error: any) {
+      console.error('Error uploading material:', error);
+      addNotification({ title: 'Upload Failed', message: error.message, type: 'error' });
+    } finally {
+      setIsUploadingMaterial(false);
+    }
+  };
+
+  const markMessageAsRead = async (messageId: string) => {
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('id', messageId);
+      
+      if (error) throw error;
+
+      setMessages(messages.map(m => m.id === messageId ? { ...m, is_read: true } : m));
+    } catch (error) {
+      console.error('Error marking message as read:', error);
     }
   };
 
@@ -2466,6 +2563,22 @@ export const PrincipalDashboard = () => {
               Academic Records
             </button>
             <button 
+              onClick={() => { setActiveTab('messaging'); setIsSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'messaging' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`} 
+              disabled={isSuspended}
+            >
+              <MessageSquare className="w-5 h-5" />
+              Messaging
+            </button>
+            <button 
+              onClick={() => { setActiveTab('resources'); setIsSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'resources' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`} 
+              disabled={isSuspended}
+            >
+              <Library className="w-5 h-5" />
+              Resources
+            </button>
+            <button 
               onClick={() => { setActiveTab('settings'); setIsSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'settings' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`} 
               disabled={isSuspended}
@@ -2577,16 +2690,16 @@ export const PrincipalDashboard = () => {
               </div>
               <div className="flex-1 text-center md:text-left">
                 <h2 className="text-3xl font-black mb-2 uppercase tracking-tight">
-                  {daysToExpiry !== null && daysToExpiry <= 0 ? 'Subscription Expired' : 'Account Suspended'}
+                  Subscription Expired
                 </h2>
                 <p className="text-xl font-bold text-white/90 mb-6">
-                  {daysToExpiry !== null && daysToExpiry <= 0 
-                    ? 'Your school subscription has expired. Please renew to regain access to management features.'
-                    : 'Access to school management features has been restricted by the system administrator.'}
+                  This account's subscription has expired, please make payment via the POCHI LA BIASHARA<br/>
+                  ACCOUNT NUMBER: <span className="text-yellow-400">0713209474</span>.<br/>
+                  Or contact the system administrator via the same number.
                 </p>
                 <div className="inline-flex items-center gap-4 bg-white text-kenya-red px-8 py-4 rounded-2xl font-black text-2xl shadow-lg">
                   <Phone className="w-8 h-8" />
-                  REQUEST AN ADMIN TO ACTIVATE YOUR USAGE CALL 0713209373
+                  0713209474
                 </div>
               </div>
             </motion.div>
@@ -3076,6 +3189,430 @@ export const PrincipalDashboard = () => {
                   </div>
                 </div>
               </div>
+            ) : activeTab === 'messaging' ? (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-kenya-black">Messaging Center</h2>
+                    <p className="text-gray-500">Communicate with teachers and system administrators.</p>
+                  </div>
+                  <Button 
+                    onClick={() => setSelectedConversationId(null)}
+                    variant="ghost"
+                    className="gap-2"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    New Conversation
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[650px]">
+                  {/* Conversations List */}
+                  <div className="lg:col-span-1 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+                    <div className="p-4 border-b border-gray-100 bg-gray-50/50 space-y-3">
+                      <h3 className="font-bold text-kenya-black text-sm uppercase tracking-wider">Conversations</h3>
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input 
+                          type="text"
+                          placeholder="Search chats..."
+                          value={messageSearchQuery}
+                          onChange={(e) => setMessageSearchQuery(e.target.value)}
+                          className="w-full pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-kenya-green/20 outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setMessageFilter('all')}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${messageFilter === 'all' ? 'bg-kenya-green text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                        >
+                          All
+                        </button>
+                        <button 
+                          onClick={() => setMessageFilter('unread')}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${messageFilter === 'unread' ? 'bg-kenya-green text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                        >
+                          Unread
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
+                      {/* Broadcast Group */}
+                      <button 
+                        onClick={() => setSelectedConversationId('broadcast')}
+                        className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 flex items-center gap-3 ${selectedConversationId === 'broadcast' ? 'bg-kenya-green/5 border-l-4 border-l-kenya-green' : ''}`}
+                      >
+                        <div className="w-10 h-10 bg-kenya-green/10 text-kenya-green rounded-full flex items-center justify-center">
+                          <Globe className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-sm text-kenya-black">Broadcasts</span>
+                          </div>
+                          <p className="text-xs text-gray-400 truncate">Global school announcements</p>
+                        </div>
+                      </button>
+
+                      {/* Direct Conversations */}
+                      {Array.from(new Set(messages
+                        .filter(m => m.type === 'direct')
+                        .map(m => m.sender_id === principalProfile.id ? m.receiver_id : m.sender_id)
+                      )).filter(otherId => {
+                        const otherUser = staff.find(s => s.id === otherId) || (otherId === 'admin' ? { name: 'System Admin' } : null);
+                        const hasUnread = messages.some(m => m.sender_id === otherId && m.receiver_id === principalProfile.id && !m.is_read);
+                        const matchesSearch = !messageSearchQuery || otherUser?.name.toLowerCase().includes(messageSearchQuery.toLowerCase());
+                        const matchesFilter = messageFilter === 'all' || hasUnread;
+                        return matchesSearch && matchesFilter;
+                      }).map(otherId => {
+                        const otherUser = staff.find(s => s.id === otherId) || (otherId === 'admin' ? { name: 'System Admin' } : null);
+                        if (!otherUser) return null;
+                        const lastMsg = messages
+                          .filter(m => m.type === 'direct' && (m.sender_id === otherId || m.receiver_id === otherId))
+                          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+                        const unreadCount = messages.filter(m => m.sender_id === otherId && m.receiver_id === principalProfile.id && !m.is_read).length;
+
+                        return (
+                          <button 
+                            key={otherId}
+                            onClick={() => {
+                              setSelectedConversationId(otherId);
+                              // Mark all as read
+                              messages.filter(m => m.sender_id === otherId && m.receiver_id === principalProfile.id && !m.is_read).forEach(m => markMessageAsRead(m.id));
+                            }}
+                            className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 flex items-center gap-3 ${selectedConversationId === otherId ? 'bg-kenya-green/5 border-l-4 border-l-kenya-green' : ''}`}
+                          >
+                            <div className="relative">
+                              <div className="w-10 h-10 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center font-bold">
+                                {otherUser.name.charAt(0)}
+                              </div>
+                              {unreadCount > 0 && (
+                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-kenya-red text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                                  {unreadCount}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-bold text-sm text-kenya-black truncate">{otherUser.name}</span>
+                                <span className="text-[10px] text-gray-400">
+                                  {lastMsg && new Date(lastMsg.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-400 truncate">{lastMsg?.content}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Chat Area */}
+                  <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+                    {selectedConversationId ? (
+                      <>
+                        <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-kenya-green/10 text-kenya-green rounded-full flex items-center justify-center font-bold text-xs">
+                              {selectedConversationId === 'broadcast' ? <Globe className="w-4 h-4" /> : (staff.find(s => s.id === selectedConversationId)?.name.charAt(0) || 'A')}
+                            </div>
+                            <h3 className="font-bold text-kenya-black">
+                              {selectedConversationId === 'broadcast' ? 'School Broadcasts' : (staff.find(s => s.id === selectedConversationId)?.name || 'System Admin')}
+                            </h3>
+                          </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/30">
+                          {messages
+                            .filter(m => {
+                              if (selectedConversationId === 'broadcast') return m.type === 'broadcast';
+                              return m.type === 'direct' && (m.sender_id === selectedConversationId || m.receiver_id === selectedConversationId);
+                            })
+                            .map((msg) => (
+                              <div 
+                                key={msg.id} 
+                                className={`flex flex-col max-w-[75%] ${msg.sender_id === principalProfile.id ? 'ml-auto items-end' : 'mr-auto items-start'}`}
+                              >
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[10px] font-bold text-gray-400 uppercase">
+                                    {msg.sender_id === principalProfile.id ? 'You' : msg.sender?.name}
+                                  </span>
+                                  <span className="text-[10px] text-gray-300">
+                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <div className={`px-4 py-2 rounded-2xl text-sm shadow-sm ${msg.sender_id === principalProfile.id ? 'bg-kenya-green text-white rounded-tr-none' : 'bg-white text-kenya-black border border-gray-100 rounded-tl-none'}`}>
+                                  {msg.content}
+                                </div>
+                                {msg.type === 'broadcast' && (
+                                  <span className="text-[8px] font-bold text-kenya-green uppercase mt-1">Target: {msg.target_role}s</span>
+                                )}
+                              </div>
+                            ))}
+                        </div>
+                        <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-100 bg-white flex gap-2">
+                          <input 
+                            type="text"
+                            value={newMessage.content}
+                            onChange={(e) => setNewMessage({...newMessage, content: e.target.value, receiverId: selectedConversationId === 'broadcast' ? '' : selectedConversationId!, type: selectedConversationId === 'broadcast' ? 'broadcast' : 'direct'})}
+                            placeholder="Type your message..."
+                            className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-kenya-green/20 outline-none"
+                            required
+                          />
+                          <Button type="submit" className="px-4 py-2">
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        </form>
+                      </>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                        <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+                          <MessageSquare className="w-10 h-10 text-gray-300" />
+                        </div>
+                        <h3 className="text-xl font-bold text-kenya-black mb-2">New Message</h3>
+                        <p className="text-gray-400 max-w-xs mb-8">Select a conversation or start a new one to communicate with your staff.</p>
+                        
+                        <div className="w-full max-w-md bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                          <form onSubmit={handleSendMessage} className="space-y-4">
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-gray-400 uppercase text-left block">Message Type</label>
+                              <select 
+                                value={newMessage.type}
+                                onChange={(e) => setNewMessage({...newMessage, type: e.target.value as any})}
+                                className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm"
+                              >
+                                <option value="direct">Direct Message</option>
+                                <option value="broadcast">Broadcast to Teachers</option>
+                              </select>
+                            </div>
+
+                            {newMessage.type === 'direct' ? (
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-400 uppercase text-left block">Recipient</label>
+                                <select 
+                                  value={newMessage.receiverId}
+                                  onChange={(e) => setNewMessage({...newMessage, receiverId: e.target.value})}
+                                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm"
+                                  required
+                                >
+                                  <option value="">Select Teacher...</option>
+                                  {staff.filter(s => s.role === 'Teacher').map(t => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                  ))}
+                                  <option value="admin">System Administrator</option>
+                                </select>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-400 uppercase text-left block">Target Group</label>
+                                <select 
+                                  value={newMessage.targetRole}
+                                  onChange={(e) => setNewMessage({...newMessage, targetRole: e.target.value})}
+                                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm"
+                                >
+                                  <option value="teacher">All Teachers</option>
+                                  <option value="staff">All Staff</option>
+                                </select>
+                              </div>
+                            )}
+
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-gray-400 uppercase text-left block">Message Content</label>
+                              <textarea 
+                                value={newMessage.content}
+                                onChange={(e) => setNewMessage({...newMessage, content: e.target.value})}
+                                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm h-24 resize-none"
+                                placeholder="Type your message here..."
+                                required
+                              />
+                            </div>
+
+                            <Button type="submit" className="w-full gap-2">
+                              <Send className="w-4 h-4" />
+                              Send Message
+                            </Button>
+                          </form>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : activeTab === 'resources' ? (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-kenya-black">Educational Resources</h2>
+                    <p className="text-gray-500">Upload and manage exam materials and revision resources.</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input 
+                        type="text"
+                        placeholder="Search resources..."
+                        value={resourceSearchQuery}
+                        onChange={(e) => setResourceSearchQuery(e.target.value)}
+                        className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-kenya-green/20 outline-none w-64"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Filter className="w-4 h-4 text-gray-400" />
+                      <select 
+                        value={resourceFilterSubject}
+                        onChange={(e) => setResourceFilterSubject(e.target.value)}
+                        className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium"
+                      >
+                        <option value="All">All Subjects</option>
+                        {learningAreas.map(la => <option key={la} value={la}>{la}</option>)}
+                      </select>
+                    </div>
+                    <select 
+                      value={resourceFilterCategory}
+                      onChange={(e) => setResourceFilterCategory(e.target.value)}
+                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium"
+                    >
+                      <option value="All">All Categories</option>
+                      <option>Revision</option>
+                      <option>Exam Paper</option>
+                      <option>Marking Scheme</option>
+                      <option>Lesson Plan</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-1">
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sticky top-8">
+                      <h3 className="font-bold text-kenya-black mb-6 flex items-center gap-2">
+                        <Upload className="w-5 h-5 text-kenya-green" />
+                        Upload New Resource
+                      </h3>
+                      <form onSubmit={handleUploadMaterial} className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-kenya-black">Resource Title</label>
+                          <input 
+                            type="text" required
+                            value={newMaterial.title}
+                            onChange={(e) => setNewMaterial({...newMaterial, title: e.target.value})}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-kenya-green/20 outline-none"
+                            placeholder="e.g. Grade 4 Math Revision"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-kenya-black">Subject</label>
+                          <select 
+                            required
+                            value={newMaterial.subject}
+                            onChange={(e) => setNewMaterial({...newMaterial, subject: e.target.value})}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-kenya-green/20 outline-none"
+                          >
+                            <option value="">Select Subject...</option>
+                            {learningAreas.map(la => (
+                              <option key={la} value={la}>{la}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-kenya-black">Category</label>
+                          <select 
+                            required
+                            value={newMaterial.category}
+                            onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-kenya-green/20 outline-none"
+                          >
+                            <option>Revision</option>
+                            <option>Exam Paper</option>
+                            <option>Marking Scheme</option>
+                            <option>Lesson Plan</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-kenya-black">File</label>
+                          <div className="relative group">
+                            <input 
+                              type="file" 
+                              ref={materialFileRef}
+                              required
+                              className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-kenya-green/10 file:text-kenya-green hover:file:bg-kenya-green/20 cursor-pointer"
+                            />
+                          </div>
+                        </div>
+                        <Button type="submit" className="w-full gap-2" disabled={isUploadingMaterial}>
+                          {isUploadingMaterial ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                          {isUploadingMaterial ? 'Uploading...' : 'Save Resource'}
+                        </Button>
+                      </form>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-2 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {examMaterials
+                        .filter(m => (resourceFilterSubject === 'All' || m.subject === resourceFilterSubject))
+                        .filter(m => (resourceFilterCategory === 'All' || m.category === resourceFilterCategory))
+                        .filter(m => (resourceSearchQuery === '' || m.title.toLowerCase().includes(resourceSearchQuery.toLowerCase()) || m.subject.toLowerCase().includes(resourceSearchQuery.toLowerCase())))
+                        .length === 0 ? (
+                        <div className="col-span-full bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+                          <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <FileText className="w-8 h-8 text-gray-300" />
+                          </div>
+                          <p className="text-gray-400 italic">No resources found matching your filters.</p>
+                        </div>
+                      ) : (
+                        examMaterials
+                          .filter(m => (resourceFilterSubject === 'All' || m.subject === resourceFilterSubject))
+                          .filter(m => (resourceFilterCategory === 'All' || m.category === resourceFilterCategory))
+                          .filter(m => (resourceSearchQuery === '' || m.title.toLowerCase().includes(resourceSearchQuery.toLowerCase()) || m.subject.toLowerCase().includes(resourceSearchQuery.toLowerCase())))
+                          .map((material) => (
+                          <motion.div 
+                            layout
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            key={material.id} 
+                            className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden"
+                          >
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-kenya-green/5 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500" />
+                            
+                            <div className="flex items-start justify-between mb-4 relative z-10">
+                              <div className="w-12 h-12 bg-kenya-green/10 text-kenya-green rounded-xl flex items-center justify-center shadow-inner">
+                                <FileText className="w-6 h-6" />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <a 
+                                  href={material.file_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="p-2 bg-gray-50 text-gray-400 hover:text-kenya-green hover:bg-kenya-green/10 rounded-lg transition-all"
+                                  title="Download Resource"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </a>
+                              </div>
+                            </div>
+                            
+                            <h4 className="font-bold text-kenya-black mb-1 truncate pr-4">{material.title}</h4>
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase mb-4">
+                              <span className="px-2 py-0.5 bg-gray-100 rounded-md">{material.subject}</span>
+                              <span className="px-2 py-0.5 bg-gray-100 rounded-md">{material.category}</span>
+                            </div>
+                            
+                            <div className="flex items-center justify-between pt-4 border-t border-gray-50 relative z-10">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500">
+                                  {material.profiles?.name?.charAt(0)}
+                                </div>
+                                <span className="text-[10px] text-gray-500 font-medium">By {material.profiles?.name}</span>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider ${material.status === 'Approved' ? 'bg-kenya-green/10 text-kenya-green' : 'bg-yellow-100 text-yellow-600'}`}>
+                                {material.status}
+                              </span>
+                            </div>
+                          </motion.div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : activeTab === 'academic' ? (
               <div className="space-y-8">
                 <div className="flex items-center justify-between">
@@ -3161,19 +3698,29 @@ export const PrincipalDashboard = () => {
                         </div>
                       </div>
 
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-kenya-black">Target Class</label>
-                          <select 
-                            required
-                            value={newExam.classes[0] || ''}
-                            onChange={(e) => setNewExam({...newExam, classes: [e.target.value]})}
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
-                          >
-                            <option value="">Select Class...</option>
+                        <div className="space-y-2 col-span-2">
+                          <label className="text-sm font-bold text-kenya-black">Target Classes</label>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-200 max-h-48 overflow-y-auto">
                             {classes.map(c => (
-                              <option key={c.id} value={c.name}>{c.name}</option>
+                              <label key={c.id} className="flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors group">
+                                <input 
+                                  type="checkbox"
+                                  checked={newExam.classes.includes(c.name)}
+                                  onChange={(e) => {
+                                    const updatedClasses = e.target.checked 
+                                      ? [...newExam.classes, c.name]
+                                      : newExam.classes.filter(name => name !== c.name);
+                                    setNewExam({...newExam, classes: updatedClasses});
+                                  }}
+                                  className="w-4 h-4 rounded border-gray-300 text-kenya-green focus:ring-kenya-green"
+                                />
+                                <span className="text-sm font-bold text-gray-700 group-hover:text-kenya-black">{c.name}</span>
+                              </label>
                             ))}
-                          </select>
+                          </div>
+                          {newExam.classes.length === 0 && (
+                            <p className="text-xs text-kenya-red font-bold">Please select at least one class.</p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-bold text-kenya-black">Subject (Optional)</label>
@@ -4291,6 +4838,30 @@ export const PrincipalDashboard = () => {
                                   <option key={c.id} value={c.name}>{c.name}</option>
                                 ))}
                               </select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-gray-400 uppercase">Term</label>
+                              <select 
+                                value={reportConfig.term}
+                                onChange={(e) => setReportConfig({...reportConfig, term: e.target.value})}
+                                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                              >
+                                <option value="1">Term 1</option>
+                                <option value="2">Term 2</option>
+                                <option value="3">Term 3</option>
+                              </select>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-gray-400 uppercase">Year</label>
+                              <input 
+                                type="text"
+                                value={reportConfig.year}
+                                onChange={(e) => setReportConfig({...reportConfig, year: e.target.value})}
+                                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                                placeholder="Year (e.g. 2026)"
+                              />
                             </div>
                           </div>
                         </div>

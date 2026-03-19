@@ -64,46 +64,69 @@ export const TeacherLogin = () => {
         if (!emailError) {
           data = emailData;
           authError = null;
+        } else {
+          // If both Auth attempts fail, check if the user exists in profiles
+          // but don't log them in without a session.
+          const { data: profileExists } = await supabase
+            .from('profiles')
+            .select('id, password, role')
+            .eq('phone', cleanPhone)
+            .eq('role', 'teacher')
+            .maybeSingle();
+
+          if (profileExists && profileExists.password === password) {
+            // User exists in profiles but not in Auth (or Auth password mismatch)
+            // We should try to sign them up in Auth to sync them
+            const dummyEmail = `${cleanPhone}@boraschool.ke`;
+            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+              email: dummyEmail,
+              password: password,
+              options: {
+                data: {
+                  role: 'teacher'
+                }
+              }
+            });
+
+            if (!signUpError && signUpData.user) {
+              data = { user: signUpData.user, session: signUpData.session };
+              authError = null;
+              
+              // Update the profile with the new user_id if it's different
+              await supabase
+                .from('profiles')
+                .update({ id: signUpData.user.id, user_id: signUpData.user.id })
+                .eq('phone', cleanPhone)
+                .eq('role', 'teacher');
+            } else if (signUpError?.message?.includes('already registered')) {
+              // User exists in Auth but password was wrong (since signIn failed)
+              throw new Error('Invalid teacher credentials');
+            } else {
+              throw authError || emailError;
+            }
+          } else {
+            throw authError || emailError;
+          }
         }
       }
 
       if (!authError && data.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
 
-          if (profile && profile.role === 'teacher') {
-            if (profile.must_change_password) {
-              setPendingProfileId(profile.id);
-              setShowForceChange(true);
-              return;
-            }
-            localStorage.setItem('alakara_current_teacher', JSON.stringify(profile));
-            navigate('/teacher/dashboard');
+        if (profile && profile.role === 'teacher') {
+          if (profile.must_change_password) {
+            setPendingProfileId(profile.id);
+            setShowForceChange(true);
             return;
           }
-        }
-
-        // 2. Fallback: Check profiles table for custom credentials (phone based)
-      const { data: customProfile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('phone', cleanPhone)
-        .eq('password', password)
-        .eq('role', 'teacher')
-        .maybeSingle();
-
-      if (customProfile) {
-        if (customProfile.must_change_password) {
-          setPendingProfileId(customProfile.id);
-          setShowForceChange(true);
+          localStorage.setItem('alakara_current_teacher', JSON.stringify(profile));
+          navigate('/teacher/dashboard');
           return;
         }
-        localStorage.setItem('alakara_current_teacher', JSON.stringify(customProfile));
-        navigate('/teacher/dashboard');
-        return;
       }
 
       setError('Invalid teacher credentials');
