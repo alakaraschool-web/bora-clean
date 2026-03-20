@@ -94,39 +94,64 @@ export const TeacherLogin = () => {
             .maybeSingle();
 
           if (profileExists && profileExists.password === password) {
-            // User exists in profiles but not in Auth (or Auth password mismatch)
-            // We should try to sign them up in Auth to sync them
-            const dummyEmail = `${cleanPhone}@boraschool.ke`;
-            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-              email: dummyEmail,
-              password: password,
-              options: {
-                data: {
-                  role: 'teacher'
+            // User exists in profiles but Auth failed (likely password mismatch after reset)
+            // Try to sync Auth password via server-side API
+            try {
+              const syncResponse = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profileId: profileExists.id, newPassword: password })
+              });
+              
+              if (syncResponse.ok) {
+                // Sync successful, try to sign in again
+                const { data: retryAuth, error: retryError } = await supabase.auth.signInWithPassword({
+                  email: dummyEmail,
+                  password: password
+                });
+                
+                if (!retryError && retryAuth.user) {
+                  data = { user: retryAuth.user, session: retryAuth.session };
+                  authError = null;
                 }
               }
-            });
+            } catch (syncErr) {
+              console.error('Auth sync failed:', syncErr);
+            }
 
-            if (!signUpError && signUpData.user) {
-              data = { user: signUpData.user, session: signUpData.session };
-              authError = null;
-              
-              // Update the profile with the new user_id if it's different
-              console.log('Updating profile with new user_id:', signUpData.user.id);
-              const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ user_id: signUpData.user.id })
-                .eq('phone', cleanPhone)
-                .eq('role', 'teacher');
-              
-              if (updateError) {
-                console.error('Error updating profile with user_id:', updateError);
+            if (authError) {
+              // If sync failed or still can't login, try signUp as fallback (if not already registered)
+              const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                email: dummyEmail,
+                password: password,
+                options: {
+                  data: {
+                    role: 'teacher'
+                  }
+                }
+              });
+
+              if (!signUpError && signUpData.user) {
+                data = { user: signUpData.user, session: signUpData.session };
+                authError = null;
+                
+                // Update the profile with the new user_id if it's different
+                console.log('Updating profile with new user_id:', signUpData.user.id);
+                const { error: updateError } = await supabase
+                  .from('profiles')
+                  .update({ user_id: signUpData.user.id })
+                  .eq('phone', cleanPhone)
+                  .eq('role', 'teacher');
+                
+                if (updateError) {
+                  console.error('Error updating profile with user_id:', updateError);
+                }
+              } else if (signUpError?.message?.includes('already registered')) {
+                // User exists in Auth but password was wrong (since signIn failed)
+                throw new Error('Invalid teacher credentials. If you recently reset your password, please wait a moment and try again.');
+              } else {
+                throw authError || emailError;
               }
-            } else if (signUpError?.message?.includes('already registered')) {
-              // User exists in Auth but password was wrong (since signIn failed)
-              throw new Error('Invalid teacher credentials');
-            } else {
-              throw authError || emailError;
             }
           } else {
             throw authError || emailError;

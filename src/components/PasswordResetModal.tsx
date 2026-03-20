@@ -13,6 +13,7 @@ interface PasswordResetModalProps {
 export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, onClose, role }) => {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [identifier, setIdentifier] = useState('');
+  const [fullName, setFullName] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,31 +27,50 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
 
     try {
       const sanitizedInput = identifier.trim();
+      const sanitizedName = fullName.trim().toLowerCase();
       const cleanPhone = sanitizedInput.replace(/\s+/g, '');
       
-      let query = supabase.from('profiles').select('id, role').eq('role', role);
-
       if (role === 'student') {
         // Students might use ADM or email/phone
         const { data: studentProfile, error: studentError } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, name')
           .eq('role', 'student')
           .or(`email.eq.${sanitizedInput},phone.eq.${cleanPhone}`)
           .maybeSingle();
 
         if (studentProfile) {
+          // Verify name
+          const profileNames = studentProfile.name.toLowerCase().split(' ');
+          const providedNames = sanitizedName.split(' ');
+          const nameMatches = providedNames.some(name => profileNames.includes(name)) || 
+                            studentProfile.name.toLowerCase().includes(sanitizedName);
+
+          if (!nameMatches) {
+            throw new Error('The name provided does not match our records for this account.');
+          }
+
           setTargetProfileId(studentProfile.id);
           setStep(2);
         } else {
           // Try searching students table by ADM
           const { data: studentByAdm, error: admError } = await supabase
             .from('students')
-            .select('id')
+            .select('id, name')
             .eq('adm', sanitizedInput)
             .maybeSingle();
 
           if (studentByAdm) {
+            // Verify name
+            const studentNames = studentByAdm.name.toLowerCase().split(' ');
+            const providedNames = sanitizedName.split(' ');
+            const nameMatches = providedNames.some(name => studentNames.includes(name)) || 
+                              studentByAdm.name.toLowerCase().includes(sanitizedName);
+
+            if (!nameMatches) {
+              throw new Error('The name provided does not match our records for this admission number.');
+            }
+
             // Find the profile for this student
             const { data: profileByStudent, error: profileError } = await supabase
               .from('profiles')
@@ -72,12 +92,22 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
         // For other roles, search by email or phone
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, name')
           .eq('role', role)
           .or(`email.eq.${sanitizedInput},phone.eq.${cleanPhone}`)
           .maybeSingle();
 
         if (profile) {
+          // Verify name
+          const profileNames = profile.name.toLowerCase().split(' ');
+          const providedNames = sanitizedName.split(' ');
+          const nameMatches = providedNames.some(name => profileNames.includes(name)) || 
+                            profile.name.toLowerCase().includes(sanitizedName);
+
+          if (!nameMatches) {
+            throw new Error('The name provided does not match our records for this account.');
+          }
+
           setTargetProfileId(profile.id);
           setStep(2);
         } else {
@@ -110,7 +140,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
 
     setIsLoading(true);
     try {
-      // Update the password in the profiles table
+      // 1. Update the password in the profiles table
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
@@ -121,7 +151,26 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
 
       if (updateError) throw updateError;
 
-      // If it's a student, also update the students table password for legacy support
+      // 2. Update Auth password via server-side API
+      try {
+        const response = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profileId: targetProfileId, newPassword })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.warn('Auth reset failed, but profile updated:', errorData.error);
+          // We don't throw here to avoid confusing the user, 
+          // but we log it for debugging. 
+          // The profile update is the primary "fallback" reset.
+        }
+      } catch (authErr) {
+        console.error('Failed to sync Auth password:', authErr);
+      }
+
+      // 3. If it's a student, also update the students table password for legacy support
       const { data: profile } = await supabase
         .from('profiles')
         .select('student_id')
@@ -146,6 +195,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
   const resetState = () => {
     setStep(1);
     setIdentifier('');
+    setFullName('');
     setNewPassword('');
     setConfirmPassword('');
     setError('');
@@ -202,6 +252,19 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
                       onChange={(e) => setIdentifier(e.target.value)}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
                       placeholder={role === 'student' ? 'e.g. ADM-2024-001' : role === 'super-admin' ? 'e.g. admin' : 'e.g. 0712345678'}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-kenya-black uppercase ml-1">
+                      Full Name (as registered)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. John Doe"
                     />
                   </div>
                   <Button type="submit" className="w-full py-4 rounded-xl font-bold" disabled={isLoading}>
