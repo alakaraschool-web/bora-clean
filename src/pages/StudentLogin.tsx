@@ -23,24 +23,41 @@ export const StudentLogin = () => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data: profile } = await supabase
+        console.log('Session found, checking profile for user:', session.user.id);
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', session.user.id)
-          .single();
+          .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
+          .maybeSingle();
         
+        if (profileError) {
+          console.error('Error fetching profile in checkSession:', profileError);
+        }
+
         if (profile && profile.role === 'student') {
+          console.log('Student profile found, fetching student data');
           // Fetch student data
-          const { data: student } = await supabase
+          const { data: student, error: studentError } = await supabase
             .from('students')
             .select('*')
             .eq('id', profile.student_id)
-            .single();
+            .maybeSingle();
           
+          if (studentError) {
+            console.error('Error fetching student data:', studentError);
+          }
+
           if (student) {
+            console.log('Student data found, navigating to dashboard');
             localStorage.setItem('alakara_current_student', JSON.stringify(student));
             navigate('/student/dashboard');
+          } else {
+            console.warn('Student profile found but student data is missing');
           }
+        } else if (profile) {
+          console.log('Profile found but role is not student:', profile.role);
+        } else {
+          console.log('No profile found for session user');
         }
       }
     };
@@ -51,6 +68,15 @@ export const StudentLogin = () => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+
+    // Safety timeout to prevent infinite loading state
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.warn('Login attempt timed out');
+        setIsLoading(false);
+        setError('Login attempt timed out. Please try again.');
+      }
+    }, 15000);
 
     try {
       const sanitizedInput = username.trim();
@@ -68,30 +94,47 @@ export const StudentLogin = () => {
       });
 
       if (!authError && authData?.user) {
-        const { data: profile } = await supabase
+        console.log('Auth sign-in successful, fetching profile for:', authData.user.id);
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', authData.user.id)
-          .single();
+          .or(`id.eq.${authData.user.id},user_id.eq.${authData.user.id}`)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Error fetching profile after auth sign-in:', profileError);
+        }
 
         if (profile && profile.role === 'student') {
-          const { data: student } = await supabase
+          console.log('Student profile found, fetching student data');
+          const { data: student, error: studentError } = await supabase
             .from('students')
             .select('*')
             .eq('id', profile.student_id || profile.id)
-            .single();
+            .maybeSingle();
+
+          if (studentError) {
+            console.error('Error fetching student data after auth sign-in:', studentError);
+          }
 
           if (student) {
+            console.log('Student data found');
             if (profile.must_change_password) {
+              console.log('Password change required');
               setPendingProfileId(profile.id);
               setPendingStudent(student);
               setShowForceChange(true);
               return;
             }
             localStorage.setItem('alakara_current_student', JSON.stringify(student));
+            console.log('Navigating to student dashboard');
             navigate('/student/dashboard');
             return;
+          } else {
+            console.warn('Profile found but student data is missing');
           }
+        } else {
+          console.warn('Auth sign-in successful but profile is missing or role mismatch');
         }
         
         await supabase.auth.signOut();
@@ -118,7 +161,15 @@ export const StudentLogin = () => {
 
         if (!signUpError && signUpData.user) {
           // Update profile with new user_id
-          await supabase.from('profiles').update({ user_id: signUpData.user.id }).eq('id', profile.id);
+          console.log('Updating student profile with new user_id:', signUpData.user.id);
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ user_id: signUpData.user.id })
+            .eq('id', profile.id);
+          
+          if (updateError) {
+            console.error('Error updating student profile with user_id:', updateError);
+          }
           
           const { data: student } = await supabase
             .from('students')
@@ -196,6 +247,7 @@ export const StudentLogin = () => {
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };

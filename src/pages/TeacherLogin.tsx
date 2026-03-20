@@ -22,15 +22,25 @@ export const TeacherLogin = () => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data: profile } = await supabase
+        console.log('Session found, checking profile for user:', session.user.id);
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', session.user.id)
-          .single();
+          .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
+          .maybeSingle();
         
+        if (profileError) {
+          console.error('Error fetching profile in checkSession:', profileError);
+        }
+
         if (profile && profile.role === 'teacher') {
+          console.log('Teacher profile found, navigating to dashboard');
           localStorage.setItem('alakara_current_teacher', JSON.stringify(profile));
           navigate('/teacher/dashboard');
+        } else if (profile) {
+          console.log('Profile found but role is not teacher:', profile.role);
+        } else {
+          console.log('No profile found for session user');
         }
       }
     };
@@ -41,6 +51,15 @@ export const TeacherLogin = () => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+
+    // Safety timeout to prevent infinite loading state
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.warn('Login attempt timed out');
+        setIsLoading(false);
+        setError('Login attempt timed out. Please try again.');
+      }
+    }, 15000);
 
     try {
       const sanitizedInput = phone.trim();
@@ -93,11 +112,16 @@ export const TeacherLogin = () => {
               authError = null;
               
               // Update the profile with the new user_id if it's different
-              await supabase
+              console.log('Updating profile with new user_id:', signUpData.user.id);
+              const { error: updateError } = await supabase
                 .from('profiles')
-                .update({ id: signUpData.user.id, user_id: signUpData.user.id })
+                .update({ user_id: signUpData.user.id })
                 .eq('phone', cleanPhone)
                 .eq('role', 'teacher');
+              
+              if (updateError) {
+                console.error('Error updating profile with user_id:', updateError);
+              }
             } else if (signUpError?.message?.includes('already registered')) {
               // User exists in Auth but password was wrong (since signIn failed)
               throw new Error('Invalid teacher credentials');
@@ -111,28 +135,41 @@ export const TeacherLogin = () => {
       }
 
       if (!authError && data.user) {
-        const { data: profile } = await supabase
+        console.log('Auth sign-in successful, fetching profile for:', data.user.id);
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', data.user.id)
-          .single();
+          .or(`id.eq.${data.user.id},user_id.eq.${data.user.id}`)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Error fetching profile after auth sign-in:', profileError);
+        }
 
         if (profile && profile.role === 'teacher') {
+          console.log('Teacher profile found');
           if (profile.must_change_password) {
+            console.log('Password change required');
             setPendingProfileId(profile.id);
             setShowForceChange(true);
             return;
           }
           localStorage.setItem('alakara_current_teacher', JSON.stringify(profile));
+          console.log('Navigating to teacher dashboard');
           navigate('/teacher/dashboard');
           return;
         }
+        
+        console.warn('Unauthorized access attempt or missing profile for role teacher');
+        await supabase.auth.signOut();
+        throw new Error('Unauthorized access. Only teachers can log in here.');
       }
 
       setError('Invalid teacher credentials');
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };

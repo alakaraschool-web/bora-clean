@@ -22,18 +22,25 @@ export const SuperAdminLogin = () => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data: profile } = await supabase
+        console.log('Session found, checking profile for super-admin:', session.user.id);
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', session.user.id)
-          .single();
+          .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
+          .maybeSingle();
         
+        if (profileError) {
+          console.error('Error fetching profile in checkSession:', profileError);
+        }
+
         if (profile && profile.role === 'super-admin') {
+          console.log('Super-admin profile found, navigating to dashboard');
           navigate('/super-admin/dashboard');
         } else if (
           session.user.email?.toLowerCase() === 'bahatisolomon70@gmail.com' || 
           session.user.email?.toLowerCase() === 'admin@boraschool.ke'
         ) {
+          console.log('Auto-creating super-admin profile for:', session.user.email);
           // Auto-create profile if missing for super-admin
           await supabase.from('profiles').upsert({
             id: session.user.id,
@@ -43,6 +50,10 @@ export const SuperAdminLogin = () => {
             role: 'super-admin'
           });
           navigate('/super-admin/dashboard');
+        } else if (profile) {
+          console.log('Profile found but role is not super-admin:', profile.role);
+        } else {
+          console.log('No profile found for session user');
         }
       }
     };
@@ -53,6 +64,15 @@ export const SuperAdminLogin = () => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+
+    // Safety timeout to prevent infinite loading state
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.warn('Login attempt timed out');
+        setIsLoading(false);
+        setError('Login attempt timed out. Please try again.');
+      }
+    }, 15000);
 
     try {
       const sanitizedInput = username.trim();
@@ -68,22 +88,31 @@ export const SuperAdminLogin = () => {
       });
 
       if (!authError && authData?.user) {
-        const { data: profile } = await supabase
+        console.log('Auth sign-in successful, fetching profile for:', authData.user.id);
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', authData.user.id)
-          .single();
+          .or(`id.eq.${authData.user.id},user_id.eq.${authData.user.id}`)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Error fetching profile after auth sign-in:', profileError);
+        }
 
         if (profile && profile.role === 'super-admin') {
+          console.log('Super-admin profile found');
           if (profile.must_change_password) {
+            console.log('Password change required');
             setPendingProfileId(profile.id);
             setShowForceChange(true);
             return;
           }
+          console.log('Navigating to super-admin dashboard');
           navigate('/super-admin/dashboard');
           return;
         }
         
+        console.warn('Unauthorized access attempt or missing profile for role super-admin');
         await supabase.auth.signOut();
         throw new Error('Unauthorized access. Only super admins can log in here.');
       }
@@ -158,6 +187,7 @@ export const SuperAdminLogin = () => {
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };
