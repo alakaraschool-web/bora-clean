@@ -46,8 +46,14 @@ CREATE TABLE IF NOT EXISTS students (
     profile_image TEXT,
     class TEXT,
     stream TEXT,
+    upi_no TEXT,
+    kpsea_no TEXT,
+    dob DATE,
+    admission_date DATE,
     parent_name TEXT,
     parent_phone TEXT,
+    house TEXT,
+    status TEXT DEFAULT 'Active',
     password TEXT, -- For student login fallback
     created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -129,6 +135,8 @@ CREATE TABLE IF NOT EXISTS classes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    level TEXT DEFAULT 'Primary',
+    category TEXT DEFAULT 'Regular',
     teacher_id UUID REFERENCES profiles(id),
     capacity INTEGER DEFAULT 40,
     created_at TIMESTAMPTZ DEFAULT now()

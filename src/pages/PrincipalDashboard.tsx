@@ -150,9 +150,31 @@ export const PrincipalDashboard = () => {
   const [editExamConfig, setEditExamConfig] = useState({ weighting: 100, maxMarks: 100 });
   const [showEditConfirmation, setShowEditConfirmation] = useState(false);
 
-  const [newStudent, setNewStudent] = useState({ name: '', adm: '', class: 'Form 1', streamId: '', gender: 'Male', profile_image: null as string | null });
+  const [newStudent, setNewStudent] = useState({ 
+    name: '', 
+    adm: '', 
+    class: 'Form 1', 
+    streamId: '', 
+    gender: 'Male', 
+    profile_image: null as string | null,
+    upi_no: '',
+    kpsea_no: '',
+    dob: '',
+    admission_date: '',
+    parent_name: '',
+    parent_phone: '',
+    house: '',
+    status: 'Active'
+  });
   const [editingStudent, setEditingStudent] = useState<any>(null);
-  const [newClass, setNewClass] = useState({ name: '', teacherId: '', capacity: 40, streams: [] as string[] });
+  const [newClass, setNewClass] = useState({ 
+    name: '', 
+    teacherId: '', 
+    capacity: 40, 
+    streams: [] as string[],
+    level: 'Primary',
+    category: 'Regular'
+  });
   const [editingClass, setEditingClass] = useState<any>(null);
 
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
@@ -339,10 +361,18 @@ export const PrincipalDashboard = () => {
             name: s.name,
             adm: s.admission_number || s.adm,
             class: s.class,
-            status: 'Active',
+            streamId: s.stream || '',
+            status: s.status || 'Active',
             gender: s.gender || 'Male',
             profile_image: s.profile_image || null,
-            password: s.password
+            password: s.password,
+            upi_no: s.upi_no || '',
+            kpsea_no: s.kpsea_no || '',
+            dob: s.dob || '',
+            admission_date: s.admission_date || '',
+            parent_name: s.parent_name || '',
+            parent_phone: s.parent_phone || '',
+            house: s.house || ''
           })));
         }
 
@@ -387,7 +417,9 @@ export const PrincipalDashboard = () => {
             id: c.id,
             name: c.name,
             teacherId: c.teacher_id,
-            capacity: c.capacity
+            capacity: c.capacity,
+            level: c.level || 'Primary',
+            category: c.category || 'Regular'
           })));
         }
 
@@ -1229,8 +1261,17 @@ export const PrincipalDashboard = () => {
         name: newStudent.name,
         admission_number: newStudent.adm,
         class: newStudent.class,
+        stream: newStudent.streamId,
         gender: newStudent.gender,
-        status: newStudent.status
+        upi_no: newStudent.upi_no,
+        kpsea_no: newStudent.kpsea_no,
+        dob: newStudent.dob,
+        admission_date: newStudent.admission_date,
+        parent_name: newStudent.parent_name,
+        parent_phone: newStudent.parent_phone,
+        house: newStudent.house,
+        status: newStudent.status,
+        profile_image: newStudent.profile_image
       }).eq('id', editingStudent.id).then(({ error }) => {
         if (error) {
           console.error('Error updating student in Supabase:', error);
@@ -1301,9 +1342,18 @@ export const PrincipalDashboard = () => {
           name: newStudent.name,
           admission_number: newStudent.adm,
           class: newStudent.class,
+          stream: newStudent.streamId,
           gender: newStudent.gender,
+          upi_no: newStudent.upi_no,
+          kpsea_no: newStudent.kpsea_no,
+          dob: newStudent.dob,
+          admission_date: newStudent.admission_date,
+          parent_name: newStudent.parent_name,
+          parent_phone: newStudent.parent_phone,
+          house: newStudent.house,
           status: 'Active',
-          school_id: school.id
+          school_id: school.id,
+          profile_image: newStudent.profile_image
         }).select().single();
 
         if (studentError) throw studentError;
@@ -1353,7 +1403,15 @@ export const PrincipalDashboard = () => {
       class: student.class, 
       streamId: student.streamId || '',
       gender: student.gender || 'Male',
-      profile_image: student.profile_image || null
+      profile_image: student.profile_image || null,
+      upi_no: student.upi_no || '',
+      kpsea_no: student.kpsea_no || '',
+      dob: student.dob || '',
+      admission_date: student.admission_date || '',
+      parent_name: student.parent_name || '',
+      parent_phone: student.parent_phone || '',
+      house: student.house || '',
+      status: student.status || 'Active'
     });
     setShowAddStudentModal(true);
   };
@@ -1368,7 +1426,9 @@ export const PrincipalDashboard = () => {
         const { error: classError } = await supabase.from('classes').update({
           name: newClass.name,
           teacher_id: newClass.teacherId,
-          capacity: parseInt(String(newClass.capacity))
+          capacity: parseInt(String(newClass.capacity)),
+          level: newClass.level,
+          category: newClass.category
         }).eq('id', editingClass.id);
 
         if (classError) throw classError;
@@ -1386,7 +1446,14 @@ export const PrincipalDashboard = () => {
           await supabase.from('streams').insert(streamsToInsert);
         }
 
-        setClasses(classes.map(c => c.id === editingClass.id ? { ...editingClass, name: newClass.name, teacherId: newClass.teacherId, capacity: newClass.capacity } : c));
+        setClasses(classes.map(c => c.id === editingClass.id ? { 
+          ...editingClass, 
+          name: newClass.name, 
+          teacherId: newClass.teacherId, 
+          capacity: newClass.capacity,
+          level: newClass.level,
+          category: newClass.category
+        } : c));
         setEditingClass(null);
       } else {
         // Create new class
@@ -1394,7 +1461,9 @@ export const PrincipalDashboard = () => {
           name: newClass.name,
           teacher_id: newClass.teacherId,
           capacity: parseInt(String(newClass.capacity)),
-          school_id: school.id
+          school_id: school.id,
+          level: newClass.level,
+          category: newClass.category
         }).select().single();
 
         if (classError) throw classError;
@@ -1413,7 +1482,9 @@ export const PrincipalDashboard = () => {
             id: classData.id,
             name: newClass.name,
             teacherId: newClass.teacherId,
-            capacity: newClass.capacity
+            capacity: newClass.capacity,
+            level: newClass.level,
+            category: newClass.category
           };
           setClasses([...classes, cls]);
         }
@@ -1450,7 +1521,9 @@ export const PrincipalDashboard = () => {
       name: cls.name, 
       teacherId: cls.teacherId || '', 
       capacity: cls.capacity || 40,
-      streams: classStreams
+      streams: classStreams,
+      level: cls.level || 'Primary',
+      category: cls.category || 'Regular'
     });
     setShowAddClassModal(true);
   };
@@ -3004,6 +3077,8 @@ export const PrincipalDashboard = () => {
                             <tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
                               <th className="px-6 py-4">Name</th>
                               <th className="px-6 py-4">Admission No</th>
+                              <th className="px-6 py-4">UPI No</th>
+                              <th className="px-6 py-4">Stream</th>
                               <th className="px-6 py-4">Status</th>
                               <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
@@ -3013,6 +3088,10 @@ export const PrincipalDashboard = () => {
                               <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
                                 <td className="px-6 py-4 font-bold text-kenya-black">{student.name}</td>
                                 <td className="px-6 py-4 font-mono text-sm text-gray-500">{student.adm}</td>
+                                <td className="px-6 py-4 font-mono text-xs text-gray-400">{student.upi_no || '--'}</td>
+                                <td className="px-6 py-4 text-sm text-gray-500">
+                                  {streams.find(s => s.id === student.streamId)?.name || '--'}
+                                </td>
                                 <td className="px-6 py-4">
                                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-kenya-green/10 text-kenya-green">
                                     {student.status}
@@ -5468,16 +5547,35 @@ export const PrincipalDashboard = () => {
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl border border-gray-100"
+              className="bg-white rounded-[2.5rem] w-full max-w-2xl p-8 shadow-2xl border border-gray-100"
             >
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-2xl font-bold text-kenya-black">{editingStudent ? 'Edit Learner' : 'Add Individual Learner'}</h3>
-                <button onClick={() => { setShowAddStudentModal(false); setEditingStudent(null); setNewStudent({ name: '', adm: '', class: 'Form 1', streamId: '' }); }} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <button onClick={() => { 
+                  setShowAddStudentModal(false); 
+                  setEditingStudent(null); 
+                  setNewStudent({ 
+                    name: '', 
+                    adm: '', 
+                    class: 'Form 1', 
+                    streamId: '', 
+                    gender: 'Male', 
+                    profile_image: null,
+                    upi_no: '',
+                    kpsea_no: '',
+                    dob: '',
+                    admission_date: '',
+                    parent_name: '',
+                    parent_phone: '',
+                    house: '',
+                    status: 'Active'
+                  }); 
+                }} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleAddStudent} className="space-y-6">
+              <form onSubmit={handleAddStudent} className="space-y-6 overflow-y-auto max-h-[70vh] pr-2">
                 <div className="flex justify-center mb-6">
                   <div className="relative group">
                     <div className="w-24 h-24 bg-gray-100 rounded-2xl overflow-hidden border-2 border-dashed border-gray-200 flex items-center justify-center">
@@ -5508,18 +5606,18 @@ export const PrincipalDashboard = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-kenya-black ml-1">Full Name</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={newStudent.name}
-                    onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
-                    placeholder="e.g. John Doe"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Full Name</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={newStudent.name}
+                      onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. John Doe"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-kenya-black ml-1">Admission Number</label>
                     <input 
@@ -5531,6 +5629,28 @@ export const PrincipalDashboard = () => {
                       placeholder="e.g. ADM-2024-001"
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">UPI Number (NEMIS)</label>
+                    <input 
+                      type="text" 
+                      value={newStudent.upi_no}
+                      onChange={(e) => setNewStudent({...newStudent, upi_no: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. ABC1234567"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">KPSEA Number</label>
+                    <input 
+                      type="text" 
+                      value={newStudent.kpsea_no}
+                      onChange={(e) => setNewStudent({...newStudent, kpsea_no: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. 123456789"
+                    />
+                  </div>
+
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-kenya-black ml-1">Gender</label>
                     <select 
@@ -5540,10 +5660,19 @@ export const PrincipalDashboard = () => {
                     >
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Date of Birth</label>
+                    <input 
+                      type="date" 
+                      value={newStudent.dob}
+                      onChange={(e) => setNewStudent({...newStudent, dob: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                    />
+                  </div>
+
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-kenya-black ml-1">Class / Grade</label>
                     <select 
@@ -5572,6 +5701,47 @@ export const PrincipalDashboard = () => {
                       ))}
                     </select>
                   </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">House</label>
+                    <input 
+                      type="text" 
+                      value={newStudent.house}
+                      onChange={(e) => setNewStudent({...newStudent, house: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. Red House"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Admission Date</label>
+                    <input 
+                      type="date" 
+                      value={newStudent.admission_date}
+                      onChange={(e) => setNewStudent({...newStudent, admission_date: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Parent/Guardian Name</label>
+                    <input 
+                      type="text" 
+                      value={newStudent.parent_name}
+                      onChange={(e) => setNewStudent({...newStudent, parent_name: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. Jane Doe"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Parent/Guardian Phone</label>
+                    <input 
+                      type="tel" 
+                      value={newStudent.parent_phone}
+                      onChange={(e) => setNewStudent({...newStudent, parent_phone: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. 0712345678"
+                    />
+                  </div>
                 </div>
                 <Button type="submit" className="w-full py-4 rounded-xl font-bold">{editingStudent ? 'Update Learner' : 'Register Learner'}</Button>
               </form>
@@ -5584,26 +5754,78 @@ export const PrincipalDashboard = () => {
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl border border-gray-100"
+              className="bg-white rounded-[2.5rem] w-full max-w-2xl p-8 shadow-2xl border border-gray-100"
             >
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-2xl font-bold text-kenya-black">{editingClass ? 'Edit Class' : 'Add New Class'}</h3>
-                <button onClick={() => { setShowAddClassModal(false); setEditingClass(null); setNewClass({ name: '', teacherId: '', capacity: 40, streams: [] }); }} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <button onClick={() => { 
+                  setShowAddClassModal(false); 
+                  setEditingClass(null); 
+                  setNewClass({ 
+                    name: '', 
+                    teacherId: '', 
+                    capacity: 40, 
+                    streams: [],
+                    level: 'Primary',
+                    category: 'Regular'
+                  }); 
+                }} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleAddClass} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-kenya-black ml-1">Class Name</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={newClass.name}
-                    onChange={(e) => setNewClass({...newClass, name: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
-                    placeholder="e.g. Form 1"
-                  />
+              <form onSubmit={handleAddClass} className="space-y-6 overflow-y-auto max-h-[70vh] pr-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Class Name</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={newClass.name}
+                      onChange={(e) => setNewClass({...newClass, name: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. Form 1"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Level</label>
+                    <select 
+                      value={newClass.level}
+                      onChange={(e) => setNewClass({...newClass, level: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                    >
+                      <option value="Pre-Primary">Pre-Primary</option>
+                      <option value="Primary">Primary</option>
+                      <option value="Junior Secondary">Junior Secondary</option>
+                      <option value="Senior Secondary">Senior Secondary</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Category</label>
+                    <select 
+                      value={newClass.category}
+                      onChange={(e) => setNewClass({...newClass, category: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                    >
+                      <option value="Regular">Regular</option>
+                      <option value="Special Needs">Special Needs</option>
+                      <option value="Vocational">Vocational</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Capacity</label>
+                    <input 
+                      type="number" 
+                      required
+                      min="1"
+                      value={newClass.capacity}
+                      onChange={(e) => setNewClass({...newClass, capacity: parseInt(e.target.value)})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-3">
