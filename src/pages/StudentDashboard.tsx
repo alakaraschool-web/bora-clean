@@ -36,6 +36,7 @@ export const StudentDashboard = () => {
     return saved ? JSON.parse(saved) : null;
   });
   const [isSuspended, setIsSuspended] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -50,8 +51,8 @@ export const StudentDashboard = () => {
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', session.user.id)
-        .single();
+        .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
+        .maybeSingle();
 
       if (profile && profile.role === 'student') {
         const { data: studentData } = await supabase
@@ -69,6 +70,7 @@ export const StudentDashboard = () => {
       } else {
         navigate('/student-login');
       }
+      setIsLoading(false);
     };
 
     checkSession();
@@ -180,6 +182,17 @@ export const StudentDashboard = () => {
     m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     m.subject.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-kenya-black flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-kenya-green animate-spin mx-auto mb-4" />
+          <p className="text-white/60 font-medium italic">Verifying student session...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FF6321] flex font-sans relative">

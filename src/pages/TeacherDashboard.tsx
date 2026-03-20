@@ -235,8 +235,8 @@ export const TeacherDashboard = () => {
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', session.user.id)
-        .single();
+        .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
+        .maybeSingle();
 
       if (profile && profile.role === 'teacher') {
         setCurrentTeacher(profile);

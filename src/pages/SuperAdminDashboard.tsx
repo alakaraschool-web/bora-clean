@@ -105,8 +105,8 @@ export const SuperAdminDashboard = () => {
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', session.user.id)
-        .single();
+        .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
+        .maybeSingle();
 
       if (profile && profile.role === 'super-admin') {
         setAdminProfile(profile);
@@ -115,6 +115,7 @@ export const SuperAdminDashboard = () => {
       } else {
         navigate('/super-admin');
       }
+      setIsLoading(false);
     };
 
     checkSession();
@@ -713,6 +714,8 @@ export const SuperAdminDashboard = () => {
       setUsers(combinedUsers);
     } catch (err) {
       console.error('Error loading super admin data:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
