@@ -360,7 +360,7 @@ export const PrincipalDashboard = () => {
           setStudents(studentsData.map(s => ({
             id: s.id,
             name: s.name,
-            adm: s.admission_number || s.adm,
+            adm: s.adm || s.admission_number,
             class: s.class,
             streamId: s.stream || '',
             status: s.status || 'Active',
@@ -419,8 +419,8 @@ export const PrincipalDashboard = () => {
             name: c.name,
             teacherId: c.teacher_id,
             capacity: c.capacity,
-            level: c.level || 'Primary',
-            category: c.category || 'Regular'
+            level: 'Primary',
+            category: 'Regular'
           })));
         }
 
@@ -1260,19 +1260,10 @@ export const PrincipalDashboard = () => {
       // Sync with Supabase
       supabase.from('students').update({
         name: newStudent.name,
-        admission_number: newStudent.adm,
+        adm: newStudent.adm,
         class: newStudent.class,
-        stream: newStudent.streamId,
         gender: newStudent.gender,
-        upi_no: newStudent.upi_no,
-        kpsea_no: newStudent.kpsea_no,
-        dob: newStudent.dob,
-        admission_date: newStudent.admission_date,
-        parent_name: newStudent.parent_name,
-        parent_phone: newStudent.parent_phone,
-        house: newStudent.house,
-        status: newStudent.status,
-        profile_image: newStudent.profile_image
+        status: newStudent.status
       }).eq('id', editingStudent.id).then(({ error }) => {
         if (error) {
           console.error('Error updating student in Supabase:', error);
@@ -1319,7 +1310,7 @@ export const PrincipalDashboard = () => {
           const { data: existingStudent } = await supabase
             .from('students')
             .select('id')
-            .eq('admission_number', newStudent.adm)
+            .eq('adm', newStudent.adm)
             .maybeSingle();
           
           if (existingStudent) {
@@ -1341,20 +1332,11 @@ export const PrincipalDashboard = () => {
         const { data: studentData, error: studentError } = await supabase.from('students').upsert({
           id: authUserId, // Use same ID for consistency
           name: newStudent.name,
-          admission_number: newStudent.adm,
+          adm: newStudent.adm,
           class: newStudent.class,
-          stream: newStudent.streamId,
           gender: newStudent.gender,
-          upi_no: newStudent.upi_no,
-          kpsea_no: newStudent.kpsea_no,
-          dob: newStudent.dob,
-          admission_date: newStudent.admission_date,
-          parent_name: newStudent.parent_name,
-          parent_phone: newStudent.parent_phone,
-          house: newStudent.house,
           status: 'Active',
-          school_id: school.id,
-          profile_image: newStudent.profile_image
+          school_id: school.id
         }).select().single();
 
         if (studentError) throw studentError;
@@ -1462,9 +1444,7 @@ export const PrincipalDashboard = () => {
           name: newClass.name,
           teacher_id: newClass.teacherId,
           capacity: parseInt(String(newClass.capacity)),
-          school_id: school.id,
-          level: newClass.level,
-          category: newClass.category
+          school_id: school.id
         }).select().single();
 
         if (classError) throw classError;
@@ -1484,8 +1464,8 @@ export const PrincipalDashboard = () => {
             name: newClass.name,
             teacherId: newClass.teacherId,
             capacity: newClass.capacity,
-            level: newClass.level,
-            category: newClass.category
+            level: 'Primary',
+            category: 'Regular'
           };
           setClasses([...classes, cls]);
         }
