@@ -191,7 +191,7 @@ export interface Database {
         Row: {
           id: string
           name: string
-          adm: string
+          admission_number: string
           class: string
           gender: string | null
           status: string
@@ -201,7 +201,7 @@ export interface Database {
         Insert: {
           id?: string
           name: string
-          adm: string
+          admission_number: string
           class: string
           gender?: string | null
           status?: string
@@ -211,7 +211,7 @@ export interface Database {
         Update: {
           id?: string
           name?: string
-          adm?: string
+          admission_number?: string
           class?: string
           gender?: string | null
           status?: string

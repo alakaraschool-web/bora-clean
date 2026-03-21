@@ -304,7 +304,7 @@ export const TeacherDashboard = () => {
         if (studentsData) {
           const formattedStudents = studentsData.map(s => ({
             ...s,
-            adm: s.adm || s.admission_number,
+            adm: s.admission_number,
             status: s.status || 'Active'
           }));
           setAllStudents(formattedStudents);
@@ -501,7 +501,7 @@ export const TeacherDashboard = () => {
     try {
       const { data, error } = await supabase.from('students').insert({
         name: newStudent.name,
-        adm: newStudent.adm,
+        admission_number: newStudent.adm,
         class: managedClass.name,
         gender: newStudent.gender || 'Male',
         school_id: currentTeacher.school_id,
@@ -513,7 +513,7 @@ export const TeacherDashboard = () => {
       if (data) {
         const student = {
           ...data,
-          adm: data.adm || data.admission_number
+          adm: data.admission_number
         };
         setAllStudents([student, ...allStudents]);
         setShowAddStudentModal(false);

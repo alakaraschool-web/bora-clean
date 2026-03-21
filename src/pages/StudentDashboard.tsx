@@ -315,7 +315,7 @@ export const StudentDashboard = () => {
             <NotificationBell role="student" userId={currentStudent.id} />
             <div className="text-right">
               <p className="text-sm font-black text-black uppercase tracking-widest">{currentStudent?.name || 'Student Portal'}</p>
-              <p className="text-xs font-bold text-gray-500 uppercase">{currentStudent?.adm || currentStudent?.admission_number || 'ADM-2024-001'}</p>
+              <p className="text-xs font-bold text-gray-500 uppercase">{currentStudent?.admission_number || currentStudent?.adm || 'ADM-2024-001'}</p>
             </div>
             <div className="w-14 h-14 bg-[#FF6321] border-4 border-black flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <GraduationCap className="w-8 h-8 text-white" />

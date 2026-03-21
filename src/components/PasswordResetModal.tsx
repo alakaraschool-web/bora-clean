@@ -57,7 +57,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
           const { data: studentByAdm, error: admError } = await supabase
             .from('students')
             .select('id, name')
-            .eq('adm', sanitizedInput)
+            .eq('admission_number', sanitizedInput)
             .maybeSingle();
 
           if (studentByAdm) {

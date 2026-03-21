@@ -360,7 +360,7 @@ export const PrincipalDashboard = () => {
           setStudents(studentsData.map(s => ({
             id: s.id,
             name: s.name,
-            adm: s.adm || s.admission_number,
+            adm: s.admission_number,
             class: s.class,
             streamId: s.stream || '',
             status: s.status || 'Active',
@@ -1260,7 +1260,7 @@ export const PrincipalDashboard = () => {
       // Sync with Supabase
       supabase.from('students').update({
         name: newStudent.name,
-        adm: newStudent.adm,
+        admission_number: newStudent.adm,
         class: newStudent.class,
         gender: newStudent.gender,
         status: newStudent.status
@@ -1310,7 +1310,7 @@ export const PrincipalDashboard = () => {
           const { data: existingStudent } = await supabase
             .from('students')
             .select('id')
-            .eq('adm', newStudent.adm)
+            .eq('admission_number', newStudent.adm)
             .maybeSingle();
           
           if (existingStudent) {
@@ -1332,7 +1332,7 @@ export const PrincipalDashboard = () => {
         const { data: studentData, error: studentError } = await supabase.from('students').upsert({
           id: authUserId, // Use same ID for consistency
           name: newStudent.name,
-          adm: newStudent.adm,
+          admission_number: newStudent.adm,
           class: newStudent.class,
           gender: newStudent.gender,
           status: 'Active',
@@ -1544,7 +1544,7 @@ export const PrincipalDashboard = () => {
 
           const studentData = {
             name: String(row[0]).trim(),
-            adm: String(row[1] || '').trim(),
+            admission_number: String(row[1] || '').trim(),
             class: String(row[2] || 'Form 1').trim(),
             status: 'Active',
             school_id: school.id
@@ -1566,7 +1566,7 @@ export const PrincipalDashboard = () => {
               setStudents([...students, ...data.map(s => ({
                 id: s.id,
                 name: s.name,
-                adm: s.admission_number || s.adm,
+                adm: s.admission_number,
                 class: s.class,
                 status: 'Active',
                 gender: s.gender || 'Male',
@@ -1608,7 +1608,7 @@ export const PrincipalDashboard = () => {
           const studentData = {
             id: studentId,
             name: String(row[0]).trim(),
-            adm: String(row[1] || '').trim(),
+            admission_number: String(row[1] || '').trim(),
             class: className,
             status: 'Active',
             school_id: school.id

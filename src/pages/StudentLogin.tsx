@@ -195,7 +195,7 @@ export const StudentLogin = () => {
       const { data: studentByAdm } = await supabase
         .from('students')
         .select('*')
-        .eq('adm', sanitizedInput)
+        .eq('admission_number', sanitizedInput)
         .single();
 
       if (studentByAdm) {
