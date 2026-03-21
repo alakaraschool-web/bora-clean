@@ -155,12 +155,18 @@ export const StudentDashboard = () => {
           })));
         }
 
-        // Fetch Staff
+        // Fetch Staff (Limited fields for student view)
         const { data: staffData } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id, name, role, school_id, assignments')
           .eq('school_id', currentStudent.school_id);
-        if (staffData) setStaff(staffData);
+        if (staffData) {
+          setStaff(staffData.map(s => ({
+            ...s,
+            assignedSubjects: (s.assignments as any)?.subjects || [],
+            assignedClasses: (s.assignments as any)?.classes || []
+          })));
+        }
 
       } catch (error) {
         console.error('Error loading student data:', error);

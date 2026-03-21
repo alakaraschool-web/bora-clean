@@ -243,7 +243,7 @@ export const StudentLogin = () => {
         }
       }
 
-      setError('Invalid Admission Number or Password. Try using one of your names as the password!');
+      setError('Invalid Admission Number or Name. Please ensure you are using your correct Admission Number and either of your names as the password.');
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
     } finally {
@@ -309,7 +309,7 @@ export const StudentLogin = () => {
 
             <div className="space-y-1">
               <label htmlFor="username" className="block text-xs font-black text-black uppercase tracking-widest">
-                Admission Number / Phone
+                Admission Number
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -323,14 +323,14 @@ export const StudentLogin = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="block w-full pl-11 pr-4 py-4 border-4 border-black rounded-none text-black font-bold placeholder-gray-400 focus:outline-none focus:bg-yellow-50 transition-all"
-                  placeholder="ADM-2024-001"
+                  placeholder="e.g. ADM-2024-001"
                 />
               </div>
             </div>
 
             <div className="space-y-1">
               <label htmlFor="password" className="block text-xs font-black text-black uppercase tracking-widest">
-                Secret Password
+                Your Name (First or Last)
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -344,7 +344,7 @@ export const StudentLogin = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-11 pr-4 py-4 border-4 border-black rounded-none text-black font-bold placeholder-gray-400 focus:outline-none focus:bg-yellow-50 transition-all"
-                  placeholder="••••••••"
+                  placeholder="Enter either of your names"
                 />
               </div>
             </div>

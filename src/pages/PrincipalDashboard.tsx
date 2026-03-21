@@ -472,14 +472,16 @@ export const PrincipalDashboard = () => {
         if (settingsData) {
           setSchoolSettings({
             name: settingsData.name || school.name,
+            motto: settingsData.motto || '',
             address: settingsData.address || '',
             website: settingsData.website || '',
             phone: settingsData.phone || '',
             email: settingsData.email || '',
-            logo: settingsData.logo_url || null
+            logo: settingsData.logo_url || null,
+            letterheadTemplate: settingsData.letterhead_template || 'standard'
           });
           if (settingsData.grading_system) {
-            setGradingSystem(settingsData.grading_system);
+            setGradingSystem(settingsData.grading_system as any[]);
           }
         }
 
@@ -850,12 +852,21 @@ export const PrincipalDashboard = () => {
     doc.setLineWidth(0.5);
     doc.rect(margin, margin, pageWidth - (margin * 2), 40);
 
-    // 2. Logo (Placeholder)
-    doc.setFontSize(8);
-    doc.text('LOGO', margin + 10, margin + 20);
+    // 2. Logo
+    if (schoolSettings.logo) {
+      try {
+        doc.addImage(schoolSettings.logo, 'PNG', margin + 2, margin + 2, 36, 36);
+      } catch (e) {
+        doc.setFontSize(8);
+        doc.text('LOGO', margin + 10, margin + 20);
+      }
+    } else {
+      doc.setFontSize(8);
+      doc.text('LOGO', margin + 10, margin + 20);
+    }
 
     // 3. School Header Info
-    centerText(schoolSettings.name || school.name, margin + 10, 16, 'bold');
+    centerText(schoolSettings.name || school?.name || 'SCHOOL NAME', margin + 10, 16, 'bold');
     centerText(`P.O BOX ${schoolSettings.address || '923-50403'}`, margin + 18, 10);
     centerText(`Website: ${schoolSettings.website || 'www.school.ac.ke'}`, margin + 24, 10);
     
@@ -2631,6 +2642,7 @@ export const PrincipalDashboard = () => {
       await supabaseService.updateSchoolSettings(school.id, {
         motto: schoolSettings.motto,
         phone: schoolSettings.phone,
+        email: schoolSettings.email,
         website: schoolSettings.website,
         address: schoolSettings.address,
         letterhead_template: schoolSettings.letterheadTemplate,
@@ -6181,7 +6193,7 @@ export const PrincipalDashboard = () => {
                         )}
                       </div>
                       <div className="flex-1 text-center px-4">
-                        <h1 className="text-2xl font-black uppercase tracking-tight mb-1">{schoolSettings.name || 'SCHOOL NAME'}</h1>
+                        <h1 className="text-2xl font-black uppercase tracking-tight mb-1">{schoolSettings.name || school?.name || 'SCHOOL NAME'}</h1>
                         <p className="text-xs font-bold mb-1">P.O BOX {schoolSettings.address || '923-50403'}</p>
                         <p className="text-xs font-bold mb-2">Website: {schoolSettings.website || 'www.school.ac.ke'}</p>
                         <div className="inline-block border-t-2 border-b-2 border-kenya-black px-8 py-1">
