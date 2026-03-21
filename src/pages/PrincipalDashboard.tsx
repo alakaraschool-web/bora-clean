@@ -2013,14 +2013,6 @@ export const PrincipalDashboard = () => {
     }
   };
 
-  const mockAnalysisData = [
-    { subject: 'Math', average: 72, top: 98, bottom: 45 },
-    { subject: 'English', average: 68, top: 92, bottom: 38 },
-    { subject: 'Science', average: 65, top: 88, bottom: 42 },
-    { subject: 'Social', average: 75, top: 95, bottom: 50 },
-    { subject: 'CRE', average: 82, top: 99, bottom: 60 },
-  ];
-
   const getAnalyticsData = () => {
     // 1. Class Performance Comparison
     const classPerformance = classes.map(c => {
@@ -2373,7 +2365,73 @@ export const PrincipalDashboard = () => {
     .slice(0, limit);
   };
 
+  const getExamAnalyticsData = () => {
+    const analysisData = getAnalysisData();
+    if (!selectedAnalysisExamId || analysisData.length === 0) return {
+      subjectPerformance: [],
+      gradeDistribution: [],
+      genderPerformance: []
+    };
+
+    // 1. Subject Performance
+    const subjectPerformance = learningAreas.map(subject => {
+      const scores = analysisData
+        .map(s => s.subjectScores[subject])
+        .filter(score => score !== null);
+      
+      const average = scores.length > 0 
+        ? scores.reduce((sum, s) => sum + s, 0) / scores.length 
+        : 0;
+      
+      const top = scores.length > 0 ? Math.max(...scores) : 0;
+      const bottom = scores.length > 0 ? Math.min(...scores) : 0;
+
+      return {
+        subject,
+        average: parseFloat(average.toFixed(1)),
+        top,
+        bottom
+      };
+    }).filter(s => s.average > 0);
+
+    // 2. Grade Distribution
+    const gradeCounts: any = {};
+    gradingSystem.forEach(g => gradeCounts[g.grade] = 0);
+    
+    analysisData.forEach(s => {
+      if (gradeCounts[s.grade] !== undefined) {
+        gradeCounts[s.grade]++;
+      } else {
+        gradeCounts[s.grade] = (gradeCounts[s.grade] || 0) + 1;
+      }
+    });
+
+    const gradeDistribution = Object.entries(gradeCounts).map(([grade, count]) => ({
+      grade,
+      count
+    })).sort((a, b) => {
+      const order = gradingSystem.map(g => g.grade);
+      return order.indexOf(a.grade) - order.indexOf(b.grade);
+    });
+
+    // 3. Gender Comparison
+    const genderPerformance = ['Male', 'Female'].map(gender => {
+      const genderStudents = analysisData.filter(s => s.gender === gender);
+      const average = genderStudents.length > 0
+        ? genderStudents.reduce((sum, s) => sum + s.average, 0) / genderStudents.length
+        : 0;
+      
+      return {
+        gender,
+        average: parseFloat(average.toFixed(1))
+      };
+    });
+
+    return { subjectPerformance, gradeDistribution, genderPerformance };
+  };
+
   const analysisData = getAnalysisData();
+  const { subjectPerformance, gradeDistribution, genderPerformance } = getExamAnalyticsData();
 
   const getAnalysisHighlights = () => {
     if (!selectedAnalysisExamId || analysisData.length === 0) return null;
@@ -4594,7 +4652,7 @@ export const PrincipalDashboard = () => {
                         <h3 className="text-xl font-bold text-kenya-black mb-6">Subject Performance Averages</h3>
                         <div className="h-80">
                           <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={mockAnalysisData}>
+                            <BarChart data={subjectPerformance}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                               <XAxis dataKey="subject" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
                               <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
@@ -4609,10 +4667,38 @@ export const PrincipalDashboard = () => {
                       </div>
                       
                       <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
+                        <h3 className="text-xl font-bold text-kenya-black mb-6">Grade Distribution</h3>
+                        <div className="h-80">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={gradeDistribution}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="count"
+                                label={({grade, count}) => `${grade}: ${count}`}
+                              >
+                                {gradeDistribution.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={['#006633', '#008844', '#00AA55', '#33CC66', '#66DD88', '#99EEAA', '#CCFFCC'][index % 7]} />
+                                ))}
+                              </Pie>
+                              <Tooltip 
+                                contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                              />
+                              <Legend />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-xl font-bold text-kenya-black mb-6">Performance Range (Top vs Bottom)</h3>
                         <div className="h-80">
                           <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={mockAnalysisData}>
+                            <LineChart data={subjectPerformance}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                               <XAxis dataKey="subject" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
                               <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
@@ -4623,6 +4709,24 @@ export const PrincipalDashboard = () => {
                               <Line type="monotone" dataKey="top" stroke="#006633" strokeWidth={3} dot={{r: 6, fill: '#006633'}} />
                               <Line type="monotone" dataKey="bottom" stroke="#990000" strokeWidth={3} dot={{r: 6, fill: '#990000'}} />
                             </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
+                        <h3 className="text-xl font-bold text-kenya-black mb-6">Gender Performance Comparison</h3>
+                        <div className="h-80">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={genderPerformance} layout="vertical">
+                              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+                              <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} domain={[0, 100]} />
+                              <YAxis type="category" dataKey="gender" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
+                              <Tooltip 
+                                contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                                cursor={{fill: '#f9fafb'}}
+                              />
+                              <Bar dataKey="average" fill="#006633" radius={[0, 8, 8, 0]} />
+                            </BarChart>
                           </ResponsiveContainer>
                         </div>
                       </div>

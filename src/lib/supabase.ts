@@ -15,6 +15,6 @@ if (!isValidUrl(supabaseUrl) || !supabaseAnonKey) {
   console.warn('Supabase credentials missing or invalid. Please check your environment variables.');
 }
 
-export const supabase = isValidUrl(supabaseUrl)
+export const supabase = (isValidUrl(supabaseUrl) && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)
-  : createClient('https://placeholder.supabase.co', 'placeholder'); // Use placeholder to avoid crash on init
+  : createClient('https://placeholder.supabase.co', 'placeholder');
