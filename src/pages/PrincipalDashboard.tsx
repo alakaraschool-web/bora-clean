@@ -1263,6 +1263,14 @@ export const PrincipalDashboard = () => {
         admission_number: newStudent.adm,
         class: newStudent.class,
         gender: newStudent.gender,
+        upi_no: newStudent.upi_no,
+        kpsea_no: newStudent.kpsea_no,
+        dob: newStudent.dob || null,
+        admission_date: newStudent.admission_date || null,
+        parent_name: newStudent.parent_name,
+        parent_phone: newStudent.parent_phone,
+        house: newStudent.house,
+        profile_image: newStudent.profile_image,
         status: newStudent.status
       }).eq('id', editingStudent.id).then(({ error }) => {
         if (error) {
@@ -1335,6 +1343,14 @@ export const PrincipalDashboard = () => {
           admission_number: newStudent.adm,
           class: newStudent.class,
           gender: newStudent.gender,
+          upi_no: newStudent.upi_no,
+          kpsea_no: newStudent.kpsea_no,
+          dob: newStudent.dob || null,
+          admission_date: newStudent.admission_date || null,
+          parent_name: newStudent.parent_name,
+          parent_phone: newStudent.parent_phone,
+          house: newStudent.house,
+          profile_image: newStudent.profile_image,
           status: 'Active',
           school_id: school.id
         }).select().single();
@@ -1543,9 +1559,17 @@ export const PrincipalDashboard = () => {
           if (!row[0]) return; // Skip empty rows
 
           const studentData = {
-            name: String(row[0]).trim(),
+            name: String(row[0] || '').trim(),
             admission_number: String(row[1] || '').trim(),
-            class: String(row[2] || 'Form 1').trim(),
+            gender: String(row[2] || 'Male').trim(),
+            upi_no: String(row[3] || '').trim(),
+            kpsea_no: String(row[4] || '').trim(),
+            dob: String(row[5] || '').trim(),
+            admission_date: String(row[6] || '').trim(),
+            parent_name: String(row[7] || '').trim(),
+            parent_phone: String(row[8] || '').trim(),
+            house: String(row[9] || '').trim(),
+            class: String(row[10] || 'Form 1').trim(),
             status: 'Active',
             school_id: school.id
           };
@@ -1570,6 +1594,13 @@ export const PrincipalDashboard = () => {
                 class: s.class,
                 status: 'Active',
                 gender: s.gender || 'Male',
+                upi_no: s.upi_no,
+                kpsea_no: s.kpsea_no,
+                dob: s.dob,
+                admission_date: s.admission_date,
+                parent_name: s.parent_name,
+                parent_phone: s.parent_phone,
+                house: s.house,
                 profile_image: s.profile_image || null,
                 password: s.password
               }))]);
@@ -1578,7 +1609,7 @@ export const PrincipalDashboard = () => {
           });
         }
       } catch (err) {
-        alert('Error parsing Excel file. Please ensure it follows the format: Name, Admission No, Class');
+        alert('Error parsing Excel file. Please ensure it follows the template format.');
       }
     };
     reader.readAsBinaryString(file);
@@ -1604,11 +1635,17 @@ export const PrincipalDashboard = () => {
           if (index === 0) return; // Skip header
           if (!row[0]) return; // Skip empty rows
 
-          const studentId = Math.random().toString(36).substr(2, 9);
           const studentData = {
-            id: studentId,
-            name: String(row[0]).trim(),
+            name: String(row[0] || '').trim(),
             admission_number: String(row[1] || '').trim(),
+            gender: String(row[2] || 'Male').trim(),
+            upi_no: String(row[3] || '').trim(),
+            kpsea_no: String(row[4] || '').trim(),
+            dob: String(row[5] || '').trim(),
+            admission_date: String(row[6] || '').trim(),
+            parent_name: String(row[7] || '').trim(),
+            parent_phone: String(row[8] || '').trim(),
+            house: String(row[9] || '').trim(),
             class: className,
             status: 'Active',
             school_id: school.id
@@ -1681,19 +1718,54 @@ export const PrincipalDashboard = () => {
   };
 
   const downloadStudentTemplate = (className?: string) => {
-    const header = ['Full Name', 'Admission Number', 'Class'];
+    const header = [
+      'Full Name', 
+      'Admission Number', 
+      'Gender', 
+      'UPI Number', 
+      'KPSEA Number', 
+      'Date of Birth (YYYY-MM-DD)', 
+      'Admission Date (YYYY-MM-DD)', 
+      'Parent Name', 
+      'Parent Phone', 
+      'House', 
+      'Class'
+    ];
     const classStudents = className 
       ? students.filter(s => s.class === className)
       : [];
     
     const data = [
       header,
-      ...classStudents.map(s => [s.name, s.adm, s.class])
+      ...classStudents.map(s => [
+        s.name, 
+        s.adm, 
+        s.gender || 'Male', 
+        s.upi_no || '', 
+        s.kpsea_no || '', 
+        s.dob || '', 
+        s.admission_date || '', 
+        s.parent_name || '', 
+        s.parent_phone || '', 
+        s.house || '', 
+        s.class
+      ])
     ];
 
     if (data.length === 1) {
-      data.push(['Jane Doe', 'ADM-2024-001', className || 'Form 1']);
-      data.push(['John Smith', 'ADM-2024-002', className || 'Form 2']);
+      data.push([
+        'Jane Doe', 
+        'ADM-2024-001', 
+        'Female', 
+        'UPI-123456', 
+        'KPSEA-789', 
+        '2010-05-15', 
+        '2024-01-10', 
+        'Mary Doe', 
+        '0712345678', 
+        'Blue House', 
+        className || 'Form 1'
+      ]);
     }
 
     const ws = XLSX.utils.aoa_to_sheet(data);
@@ -3058,8 +3130,10 @@ export const PrincipalDashboard = () => {
                             <tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
                               <th className="px-6 py-4">Name</th>
                               <th className="px-6 py-4">Admission No</th>
+                              <th className="px-6 py-4">Gender</th>
                               <th className="px-6 py-4">UPI No</th>
                               <th className="px-6 py-4">Stream</th>
+                              <th className="px-6 py-4">House</th>
                               <th className="px-6 py-4">Status</th>
                               <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
@@ -3069,10 +3143,12 @@ export const PrincipalDashboard = () => {
                               <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
                                 <td className="px-6 py-4 font-bold text-kenya-black">{student.name}</td>
                                 <td className="px-6 py-4 font-mono text-sm text-gray-500">{student.adm}</td>
+                                <td className="px-6 py-4 text-sm text-gray-500">{student.gender || '--'}</td>
                                 <td className="px-6 py-4 font-mono text-xs text-gray-400">{student.upi_no || '--'}</td>
                                 <td className="px-6 py-4 text-sm text-gray-500">
                                   {streams.find(s => s.id === student.streamId)?.name || '--'}
                                 </td>
+                                <td className="px-6 py-4 text-sm text-gray-500">{student.house || '--'}</td>
                                 <td className="px-6 py-4">
                                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-kenya-green/10 text-kenya-green">
                                     {student.status}
@@ -4418,6 +4494,7 @@ export const PrincipalDashboard = () => {
                                 {analysisOptions.showRank && <th className="px-4 py-4 sticky left-0 bg-gray-50 z-10">Rank</th>}
                                 <th className="px-4 py-4 sticky left-0 bg-gray-50 z-10">Adm No</th>
                                 <th className="px-4 py-4 sticky left-0 bg-gray-50 z-10 min-w-[150px]">Student Name</th>
+                                <th className="px-4 py-4 text-center">Gender</th>
                                 {learningAreas.map(la => (
                                   <th key={la} className="px-4 py-4 text-center min-w-[80px]">{la}</th>
                                 ))}
@@ -4454,6 +4531,7 @@ export const PrincipalDashboard = () => {
                                       {row.name}
                                     </div>
                                   </td>
+                                  <td className="px-4 py-4 text-center text-xs text-gray-500">{row.gender || '--'}</td>
                                   {learningAreas.map(la => {
                                     const score = row.subjectScores[la];
                                     const gradeObj = gradingSystem.find(g => score !== null && score >= g.min && score <= g.max);
@@ -6387,6 +6465,8 @@ export const PrincipalDashboard = () => {
                         <tr className="bg-gray-50 text-xs font-bold text-gray-400 uppercase tracking-wider">
                           <th className="px-6 py-4">Name</th>
                           <th className="px-6 py-4">Admission No</th>
+                          <th className="px-6 py-4">Gender</th>
+                          <th className="px-6 py-4">Status</th>
                           <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -6395,6 +6475,12 @@ export const PrincipalDashboard = () => {
                           <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
                             <td className="px-6 py-4 font-bold text-kenya-black">{student.name}</td>
                             <td className="px-6 py-4 font-mono text-sm text-gray-500">{student.adm}</td>
+                            <td className="px-6 py-4 text-sm text-gray-500">{student.gender || '--'}</td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-kenya-green/10 text-kenya-green">
+                                {student.status}
+                              </span>
+                            </td>
                             <td className="px-6 py-4 text-right">
                               <button 
                                 onClick={() => {

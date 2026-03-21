@@ -193,7 +193,20 @@ export const TeacherDashboard = () => {
     ];
   });
 
-  const [newStudent, setNewStudent] = useState({ name: '', adm: '' });
+  const [newStudent, setNewStudent] = useState({ 
+    name: '', 
+    adm: '', 
+    gender: 'Male', 
+    streamId: '',
+    upi_no: '',
+    kpsea_no: '',
+    dob: '',
+    admission_date: '',
+    parent_name: '',
+    parent_phone: '',
+    house: '',
+    status: 'Active'
+  });
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [importPreviewData, setImportPreviewData] = useState<any[]>([]);
@@ -504,6 +517,13 @@ export const TeacherDashboard = () => {
         admission_number: newStudent.adm,
         class: managedClass.name,
         gender: newStudent.gender || 'Male',
+        upi_no: newStudent.upi_no,
+        kpsea_no: newStudent.kpsea_no,
+        dob: newStudent.dob || null,
+        admission_date: newStudent.admission_date || null,
+        parent_name: newStudent.parent_name,
+        parent_phone: newStudent.parent_phone,
+        house: newStudent.house,
         school_id: currentTeacher.school_id,
         status: 'Active'
       }).select().single();
@@ -517,7 +537,20 @@ export const TeacherDashboard = () => {
         };
         setAllStudents([student, ...allStudents]);
         setShowAddStudentModal(false);
-        setNewStudent({ name: '', adm: '', gender: 'Male', streamId: '' });
+        setNewStudent({ 
+          name: '', 
+          adm: '', 
+          gender: 'Male', 
+          streamId: '',
+          upi_no: '',
+          kpsea_no: '',
+          dob: '',
+          admission_date: '',
+          parent_name: '',
+          parent_phone: '',
+          house: '',
+          status: 'Active'
+        });
         
         // Update local storage for persistence
         const updatedStudents = [student, ...allStudents];
@@ -1734,6 +1767,7 @@ export const TeacherDashboard = () => {
                       <tr className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                         <th className="px-8 py-4">Admission No</th>
                         <th className="px-8 py-4">Full Name</th>
+                        <th className="px-8 py-4">Gender</th>
                         <th className="px-8 py-4">Stream</th>
                         <th className="px-8 py-4">Status</th>
                         <th className="px-8 py-4 text-right">Actions</th>
@@ -1746,6 +1780,7 @@ export const TeacherDashboard = () => {
                           <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
                             <td className="px-8 py-6 font-mono text-sm text-gray-500">{student.adm}</td>
                             <td className="px-8 py-6 font-bold text-kenya-black">{student.name}</td>
+                            <td className="px-8 py-6 text-sm text-gray-500">{student.gender || '--'}</td>
                             <td className="px-8 py-6 text-sm text-gray-500">
                               {streams.find(st => st.id === student.streamId)?.name || 'N/A'}
                             </td>
@@ -1978,37 +2013,124 @@ export const TeacherDashboard = () => {
                 </button>
               </div>
 
-              <form onSubmit={handleAddStudent} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-kenya-black ml-1">Full Name</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={newStudent.name}
-                    onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
-                    placeholder="e.g. John Doe"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-kenya-black ml-1">Admission Number</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={newStudent.adm}
-                    onChange={(e) => setNewStudent({...newStudent, adm: e.target.value})}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
-                    placeholder="e.g. ADM-2024-001"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-kenya-black ml-1">Class</label>
-                  <input 
-                    type="text" 
-                    value={managedClass}
-                    disabled
-                    className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-bold"
-                  />
+              <form onSubmit={handleAddStudent} className="space-y-6 overflow-y-auto max-h-[70vh] pr-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Full Name</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={newStudent.name}
+                      onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. John Doe"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Admission Number</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={newStudent.adm}
+                      onChange={(e) => setNewStudent({...newStudent, adm: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. ADM-2024-001"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">UPI Number (NEMIS)</label>
+                    <input 
+                      type="text" 
+                      value={newStudent.upi_no}
+                      onChange={(e) => setNewStudent({...newStudent, upi_no: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. ABC1234567"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">KPSEA Number</label>
+                    <input 
+                      type="text" 
+                      value={newStudent.kpsea_no}
+                      onChange={(e) => setNewStudent({...newStudent, kpsea_no: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. 123456789"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Gender</label>
+                    <select 
+                      value={newStudent.gender}
+                      onChange={(e) => setNewStudent({...newStudent, gender: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Date of Birth</label>
+                    <input 
+                      type="date" 
+                      value={newStudent.dob}
+                      onChange={(e) => setNewStudent({...newStudent, dob: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Admission Date</label>
+                    <input 
+                      type="date" 
+                      value={newStudent.admission_date}
+                      onChange={(e) => setNewStudent({...newStudent, admission_date: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">House</label>
+                    <input 
+                      type="text" 
+                      value={newStudent.house}
+                      onChange={(e) => setNewStudent({...newStudent, house: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. Blue House"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Parent/Guardian Name</label>
+                    <input 
+                      type="text" 
+                      value={newStudent.parent_name}
+                      onChange={(e) => setNewStudent({...newStudent, parent_name: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. Jane Doe"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Parent/Guardian Phone</label>
+                    <input 
+                      type="text" 
+                      value={newStudent.parent_phone}
+                      onChange={(e) => setNewStudent({...newStudent, parent_phone: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                      placeholder="e.g. 0712345678"
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-bold text-kenya-black ml-1">Class</label>
+                    <input 
+                      type="text" 
+                      value={managedClass?.name || ''}
+                      disabled
+                      className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 font-bold"
+                    />
+                  </div>
                 </div>
                 <Button type="submit" className="w-full py-4 rounded-xl font-bold">Admit Learner</Button>
               </form>
