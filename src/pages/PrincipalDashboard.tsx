@@ -1578,7 +1578,7 @@ export const PrincipalDashboard = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
@@ -1678,7 +1678,7 @@ export const PrincipalDashboard = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
@@ -1719,7 +1719,9 @@ export const PrincipalDashboard = () => {
 
         setStudents(newStudents);
         setStagedStudents(prev => [...prev, ...studentsToInsert]);
-        alert(`Successfully staged ${studentsToInsert.length} students. Click Save to confirm import.`);
+        
+        // Automatically save the staged students
+        await saveStagedStudents(className);
       } catch (err) {
         alert('Error parsing Excel file. Please ensure it follows the format: Name, Admission No');
       }
