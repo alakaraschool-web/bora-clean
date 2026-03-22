@@ -25,6 +25,162 @@ async function startServer() {
     }
   });
 
+  // API Route to bulk create students
+  app.post('/api/auth/bulk-create-students', async (req, res) => {
+    const { students, school_id } = req.body;
+
+    if (!students || !Array.isArray(students) || !school_id) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const results = {
+      success: [] as any[],
+      failed: [] as any[]
+    };
+
+    try {
+      for (const student of students) {
+        const { name, admission_number, class: className, gender, phone } = student;
+        const dummyEmail = `${admission_number.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
+        const password = 'password123';
+
+        try {
+          // 1. Create Auth Account
+          const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email: dummyEmail,
+            password,
+            email_confirm: true,
+            user_metadata: { name, role: 'student', school_id }
+          });
+
+          let authUserId;
+          if (authError) {
+            if (authError.message.includes('already registered')) {
+              const { data: users } = await supabaseAdmin.auth.admin.listUsers();
+              const existingUser = users?.users.find((u: any) => u.email === dummyEmail);
+              if (existingUser) {
+                authUserId = existingUser.id;
+              } else {
+                throw authError;
+              }
+            } else {
+              throw authError;
+            }
+          } else {
+            authUserId = authData.user.id;
+          }
+
+          // 2. Create Student Record
+          const { data: studentData, error: studentError } = await supabaseAdmin.from('students').upsert({
+            id: authUserId,
+            name,
+            admission_number,
+            class: className,
+            gender,
+            school_id,
+            status: 'Active'
+          }).select().single();
+
+          if (studentError) throw studentError;
+
+          // 3. Create Profile Record
+          const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+            id: authUserId,
+            user_id: authUserId,
+            name,
+            email: dummyEmail,
+            phone: phone || null,
+            role: 'student',
+            school_id,
+            student_id: studentData.id,
+            password,
+            must_change_password: true
+          });
+
+          if (profileError) throw profileError;
+
+          results.success.push({ id: authUserId, name, admission_number });
+        } catch (err: any) {
+          console.error(`Error creating student ${admission_number}:`, err);
+          results.failed.push({ name, admission_number, error: err.message });
+        }
+      }
+
+      res.json(results);
+    } catch (error: any) {
+      console.error('Server Bulk Create Error:', error);
+      res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+  });
+
+  // API Route to create a user using Service Role Key
+  app.post('/api/auth/create-user', async (req, res) => {
+    const { email, password, role, name, phone, school_id, student_id } = req.body;
+
+    if (!email || !password || !role || !name || !school_id) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    try {
+      // 1. Create Auth Account
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name, role, school_id }
+      });
+
+      if (authError) {
+        // Check if user already exists
+        if (authError.message.includes('already registered')) {
+          // Find the user
+          const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+          if (listError) throw listError;
+          const existingUser = users.users.find((u: any) => u.email === email);
+          if (existingUser) {
+            // Update profile if needed
+            const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+              id: existingUser.id,
+              user_id: existingUser.id,
+              name,
+              email,
+              phone,
+              role,
+              school_id,
+              student_id,
+              password,
+              must_change_password: true
+            });
+            if (profileError) throw profileError;
+            return res.json({ success: true, user: existingUser, message: 'User already existed, profile updated' });
+          }
+        }
+        throw authError;
+      }
+
+      // 2. Create Profile Record
+      const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+        id: authData.user.id,
+        user_id: authData.user.id,
+        name,
+        email,
+        phone,
+        role,
+        school_id,
+        student_id,
+        password,
+        must_change_password: true
+      });
+
+      if (profileError) throw profileError;
+
+      res.json({ success: true, user: authData.user });
+    } catch (error: any) {
+      console.error('Server Create User Error:', error);
+      res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+  });
+
   // API Route to reset Auth password using Service Role Key
   app.post('/api/auth/reset-password', async (req, res) => {
     const { profileId, newPassword } = req.body;

@@ -1127,69 +1127,33 @@ export const PrincipalDashboard = () => {
       const password = Math.random().toString(36).slice(-8);
       
       try {
-        // 1. Create Auth Account using a secondary client to avoid signing out the principal
-        // We need to import createClient or use a helper
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        
-        const secondaryClient = createClient(supabaseUrl, supabaseAnonKey, {
-          auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-            detectSessionInUrl: false
-          }
-        });
-
         const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
-        // Use email for signUp to avoid phone auth configuration issues
-        const { data: authData, error: authError } = await secondaryClient.auth.signUp({
-          email: dummyEmail,
-          password: password
+        // 1. Create Auth Account and Profile via Server API
+        const response = await fetch('/api/auth/create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: dummyEmail,
+            password: password,
+            role: newStaff.role.toLowerCase(),
+            name: newStaff.name,
+            phone: finalPhone,
+            school_id: school.id
+          })
         });
 
-        if (authError && authError.message !== 'User already registered') {
-          throw authError;
-        }
+        const authResult = await response.json();
+        if (!response.ok) throw new Error(authResult.error || 'Failed to create staff account');
 
-        let authUserId = authData.user?.id;
-        let linkedUserId = authData.user?.id;
-        
-        if (!authUserId) {
-          // User might already exist in Auth. Try to find them in profiles.
-          const { data: existingProfile } = await supabase
-            .from('profiles')
-            .select('id, user_id')
-            .eq('phone', sanitizedPhone)
-            .maybeSingle();
-          
-          if (existingProfile) {
-            authUserId = existingProfile.id;
-            linkedUserId = existingProfile.user_id;
-          } else {
-            authUserId = crypto.randomUUID();
-            linkedUserId = null;
-          }
-        }
+        const authUserId = authResult.user.id;
 
-        // 2. Sync with Supabase profiles table
-        const { data, error } = await supabase.from('profiles').upsert({
-          id: authUserId,
-          user_id: linkedUserId,
-          name: newStaff.name,
-          email: `${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
-          phone: sanitizedPhone,
-          role: newStaff.role.toLowerCase(),
-          school_id: school.id,
-          password: password, // Store password in profile for cross-device login fallback
-          must_change_password: true,
+        // 2. Update Profile with assignments
+        const { data, error } = await supabase.from('profiles').update({
           assignments: newStaff.assignments
-        }).select().single();
+        }).eq('id', authUserId).select().single();
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         if (data) {
           const staffMember = {
@@ -1311,41 +1275,24 @@ export const PrincipalDashboard = () => {
         const dummyEmail = `${studentPhone.replace('+', '')}@student.boraschool.ke`;
         const password = 'password123'; // Default password for students
 
-        // 1. Create Auth Account
-        const { data: authData, error: authError } = await secondaryClient.auth.signUp({
-          email: dummyEmail,
-          password: password
+        // 1. Create Auth Account and Profile via Server API
+        const response = await fetch('/api/auth/create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: dummyEmail,
+            password: password,
+            role: 'student',
+            name: newStudent.name,
+            phone: studentPhone,
+            school_id: school.id
+          })
         });
 
-        if (authError && authError.message !== 'User already registered') {
-          throw authError;
-        }
+        const authResult = await response.json();
+        if (!response.ok) throw new Error(authResult.error || 'Failed to create student account');
 
-        let authUserId = authData.user?.id;
-        let linkedUserId = authData.user?.id;
-        
-        if (!authUserId) {
-          // User might already exist. Try to find them.
-          const { data: existingStudent } = await supabase
-            .from('students')
-            .select('id')
-            .eq('admission_number', newStudent.adm)
-            .maybeSingle();
-          
-          if (existingStudent) {
-            authUserId = existingStudent.id;
-            // Try to find linked user_id from profiles
-            const { data: existingProfile } = await supabase
-              .from('profiles')
-              .select('user_id')
-              .eq('student_id', existingStudent.id)
-              .maybeSingle();
-            linkedUserId = existingProfile?.user_id || null;
-          } else {
-            authUserId = crypto.randomUUID();
-            linkedUserId = null;
-          }
-        }
+        const authUserId = authResult.user.id;
 
         // 2. Create Student Record
         const { data: studentData, error: studentError } = await supabase.from('students').upsert({
@@ -1368,19 +1315,10 @@ export const PrincipalDashboard = () => {
 
         if (studentError) throw studentError;
 
-        // 3. Create Profile Record
-        const { error: profileError } = await supabase.from('profiles').upsert({
-          id: authUserId,
-          user_id: linkedUserId,
-          name: newStudent.name,
-          email: `${studentPhone.replace('+', '')}@student.boraschool.ke`, // Dummy email to satisfy DB constraint
-          phone: studentPhone,
-          role: 'student',
-          school_id: school.id,
-          student_id: studentData.id,
-          password: password,
-          must_change_password: true
-        });
+        // 3. Update Profile Record with student_id
+        const { error: profileError } = await supabase.from('profiles').update({
+          student_id: studentData.id
+        }).eq('id', authUserId);
 
         if (profileError) throw profileError;
 
@@ -1590,33 +1528,49 @@ export const PrincipalDashboard = () => {
 
         setStudents([...students, ...studentsToInsert.map(s => ({ ...s, id: crypto.randomUUID() }))]);
         
-        // Sync with Supabase
+        // Sync with Supabase via Server API
         if (studentsToInsert.length > 0) {
-          supabase.from('students').insert(studentsToInsert).select().then(({ data, error }) => {
-            if (error) {
-              console.error('Error syncing bulk students:', error);
-              alert('Partial sync failure: Some students could not be saved to Supabase.');
-            } else if (data) {
-              // Update local state with real IDs from Supabase
-              setStudents([...students, ...data.map(s => ({
-                id: s.id,
-                name: s.name,
-                adm: s.admission_number,
-                class: s.class,
-                status: 'Active',
-                gender: s.gender || 'Male',
-                upi_no: s.upi_no,
-                kpsea_no: s.kpsea_no,
-                dob: s.dob,
-                admission_date: s.admission_date,
-                parent_name: s.parent_name,
-                parent_phone: s.parent_phone,
-                house: s.house,
-                profile_image: s.profile_image || null,
-                password: s.password
-              }))]);
-              alert(`Successfully imported ${data.length} students and synced with Supabase!`);
+          fetch('/api/auth/bulk-create-students', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              students: studentsToInsert,
+              school_id: school.id
+            })
+          })
+          .then(res => res.json())
+          .then(result => {
+            if (result.success && result.success.length > 0) {
+              // Fetch updated students list to get real IDs and profiles
+              supabase.from('students').select('*').eq('school_id', school.id).then(({ data }) => {
+                if (data) {
+                  setStudents(data.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    adm: s.admission_number,
+                    class: s.class,
+                    status: s.status || 'Active',
+                    gender: s.gender || 'Male',
+                    upi_no: s.upi_no,
+                    kpsea_no: s.kpsea_no,
+                    dob: s.dob,
+                    admission_date: s.admission_date,
+                    parent_name: s.parent_name,
+                    parent_phone: s.parent_phone,
+                    house: s.house,
+                    profile_image: s.profile_image || null,
+                    password: s.password
+                  })));
+                }
+              });
+              alert(`Successfully imported ${result.success.length} students! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
+            } else if (result.error) {
+              alert('Bulk import failed: ' + result.error);
             }
+          })
+          .catch(err => {
+            console.error('Error syncing bulk students:', err);
+            alert('Bulk import failed. Please check your connection.');
           });
         }
       } catch (err) {
@@ -1668,15 +1622,49 @@ export const PrincipalDashboard = () => {
 
         setStudents(newStudents);
 
-        // Sync with Supabase
+        // Sync with Supabase via Server API
         if (studentsToInsert.length > 0) {
-          supabase.from('students').insert(studentsToInsert).then(({ error }) => {
-            if (error) {
-              console.error('Error syncing bulk students to class:', error);
-              alert('Partial sync failure: Some students could not be saved to Supabase.');
-            } else {
-              alert(`Successfully imported ${studentsToInsert.length} students to ${className} and synced with Supabase!`);
+          fetch('/api/auth/bulk-create-students', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              students: studentsToInsert,
+              school_id: school.id
+            })
+          })
+          .then(res => res.json())
+          .then(result => {
+            if (result.success && result.success.length > 0) {
+              // Fetch updated students list to get real IDs and profiles
+              supabase.from('students').select('*').eq('school_id', school.id).then(({ data }) => {
+                if (data) {
+                  setStudents(data.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    adm: s.admission_number,
+                    class: s.class,
+                    status: s.status || 'Active',
+                    gender: s.gender || 'Male',
+                    upi_no: s.upi_no,
+                    kpsea_no: s.kpsea_no,
+                    dob: s.dob,
+                    admission_date: s.admission_date,
+                    parent_name: s.parent_name,
+                    parent_phone: s.parent_phone,
+                    house: s.house,
+                    profile_image: s.profile_image || null,
+                    password: s.password
+                  })));
+                }
+              });
+              alert(`Successfully imported ${result.success.length} students to ${className}! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
+            } else if (result.error) {
+              alert('Bulk import failed: ' + result.error);
             }
+          })
+          .catch(err => {
+            console.error('Error syncing bulk students to class:', err);
+            alert('Bulk import failed. Please check your connection.');
           });
         }
       } catch (err) {
