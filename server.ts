@@ -25,6 +25,66 @@ async function startServer() {
     }
   });
 
+  // API Route to verify student login (ADM + Name)
+  app.post('/api/auth/student-login-verify', async (req, res) => {
+    const { admissionNumber, namePart } = req.body;
+
+    if (!admissionNumber || !namePart) {
+      return res.status(400).json({ error: 'Missing admission number or name' });
+    }
+
+    try {
+      // 1. Find student by admission number
+      const { data: student, error: studentError } = await supabaseAdmin
+        .from('students')
+        .select('*')
+        .eq('admission_number', admissionNumber)
+        .maybeSingle();
+
+      if (studentError || !student) {
+        return res.status(404).json({ error: 'Student not found with this admission number' });
+      }
+
+      // 2. Verify name part
+      const names = student.name.toLowerCase().split(/\s+/);
+      const inputName = namePart.toLowerCase().trim();
+      
+      const isNameValid = names.some((n: string) => n === inputName || n.includes(inputName) || inputName.includes(n));
+
+      if (!isNameValid && namePart !== 'password123') {
+        return res.status(401).json({ error: 'The name provided does not match our records for this admission number' });
+      }
+
+      // 3. Get profile to find the current password and email
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('email, password, id')
+        .eq('student_id', student.id)
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        // If no profile, we can't log in via Auth yet. 
+        // But we can return the dummy email and default password
+        const dummyEmail = `${admissionNumber.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
+        return res.json({ 
+          success: true, 
+          email: dummyEmail, 
+          password: 'password123',
+          message: 'Profile missing, using defaults' 
+        });
+      }
+
+      res.json({ 
+        success: true, 
+        email: profile.email, 
+        password: profile.password || 'password123' 
+      });
+    } catch (error: any) {
+      console.error('Student Login Verify Error:', error);
+      res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+  });
+
   // API Route to bulk create students
   app.post('/api/auth/bulk-create-students', async (req, res) => {
     const { students, school_id } = req.body;
