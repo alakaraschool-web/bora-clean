@@ -524,7 +524,14 @@ export const SuperAdminDashboard = () => {
 
   const handleUploadMaterial = async (e: FormEvent) => {
     e.preventDefault();
-    if (!uploadForm.file || !adminProfile) return;
+    if (!uploadForm.file) {
+      alert('Please select a file to upload.');
+      return;
+    }
+    if (!adminProfile) {
+      alert('You must be logged in to upload materials.');
+      return;
+    }
 
     setIsUploading(true);
     try {

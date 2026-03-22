@@ -1734,6 +1734,7 @@ export const PrincipalDashboard = () => {
     if (stagedStudents.length === 0) return;
 
     try {
+      console.log('Saving students:', stagedStudents);
       const response = await fetch('/api/auth/bulk-create-students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1745,10 +1746,12 @@ export const PrincipalDashboard = () => {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('Server error response:', errorText);
         throw new Error(`Server error: ${errorText}`);
       }
 
       const result = await response.json();
+      console.log('Bulk import result:', result);
 
       if (result.success && result.success.length > 0) {
         // Fetch updated students list to get real IDs and profiles
