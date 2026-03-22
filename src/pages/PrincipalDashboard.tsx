@@ -1662,9 +1662,10 @@ export const PrincipalDashboard = () => {
           } else if (result.error) {
             alert('Bulk import failed: ' + result.error);
           }
-        } catch (err) {
-          console.error('Error syncing bulk students:', err);
-          alert(`Bulk import failed: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
+          } catch (err) {
+            console.error('Error syncing bulk students:', err);
+            alert(`Bulk import failed: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
+          }
         }
       } catch (err) {
         alert('Error parsing Excel file. Please ensure it follows the template format.');
