@@ -1620,48 +1620,51 @@ export const PrincipalDashboard = () => {
         
         // Sync with Supabase via Server API
         if (studentsToInsert.length > 0) {
-          fetch('/api/auth/bulk-create-students', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              students: studentsToInsert,
-              school_id: school.id
-            })
-          })
-          .then(res => res.json())
-          .then(result => {
-            if (result.success && result.success.length > 0) {
-              // Fetch updated students list to get real IDs and profiles
-              supabase.from('students').select('*').eq('school_id', school.id).then(({ data }) => {
-                if (data) {
-                  setStudents(data.map(s => ({
-                    id: s.id,
-                    name: s.name,
-                    adm: s.admission_number,
-                    class: s.class,
-                    status: s.status || 'Active',
-                    gender: s.gender || 'Male',
-                    upi_no: s.upi_no,
-                    kpsea_no: s.kpsea_no,
-                    dob: s.dob,
-                    admission_date: s.admission_date,
-                    parent_name: s.parent_name,
-                    parent_phone: s.parent_phone,
-                    house: s.house,
-                    profile_image: s.profile_image || null,
-                    password: s.password
-                  })));
-                }
-              });
-              alert(`Successfully imported ${result.success.length} students! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
-            } else if (result.error) {
-              alert('Bulk import failed: ' + result.error);
+          try {
+            const response = await fetch('/api/auth/bulk-create-students', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                students: studentsToInsert,
+                school_id: school.id
+              })
+            });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Server error: ${errorText}`);
+          }
+
+          const result = await response.json();
+          if (result.success && result.success.length > 0) {
+            // Fetch updated students list to get real IDs and profiles
+            const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
+            if (data) {
+              setStudents(data.map(s => ({
+                id: s.id,
+                name: s.name,
+                adm: s.admission_number,
+                class: s.class,
+                status: s.status || 'Active',
+                gender: s.gender || 'Male',
+                upi_no: s.upi_no,
+                kpsea_no: s.kpsea_no,
+                dob: s.dob,
+                admission_date: s.admission_date,
+                parent_name: s.parent_name,
+                parent_phone: s.parent_phone,
+                house: s.house,
+                profile_image: s.profile_image || null,
+                password: s.password
+              })));
             }
-          })
-          .catch(err => {
-            console.error('Error syncing bulk students:', err);
-            alert('Bulk import failed. Please check your connection.');
-          });
+            alert(`Successfully imported ${result.success.length} students! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
+          } else if (result.error) {
+            alert('Bulk import failed: ' + result.error);
+          }
+        } catch (err) {
+          console.error('Error syncing bulk students:', err);
+          alert(`Bulk import failed: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
         }
       } catch (err) {
         alert('Error parsing Excel file. Please ensure it follows the template format.');
@@ -1728,14 +1731,21 @@ export const PrincipalDashboard = () => {
     if (stagedStudents.length === 0) return;
 
     try {
-      const result = await fetch('/api/auth/bulk-create-students', {
+      const response = await fetch('/api/auth/bulk-create-students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           students: stagedStudents,
           school_id: school.id
         })
-      }).then(res => res.json());
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server error: ${errorText}`);
+      }
+
+      const result = await response.json();
 
       if (result.success && result.success.length > 0) {
         // Fetch updated students list to get real IDs and profiles
@@ -1766,7 +1776,7 @@ export const PrincipalDashboard = () => {
       }
     } catch (err) {
       console.error('Error syncing bulk students to class:', err);
-      alert('Bulk import failed. Please check your connection.');
+      alert(`Bulk import failed: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
     }
   };
 
