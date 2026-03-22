@@ -140,6 +140,7 @@ export const TeacherDashboard = () => {
   const [newMaterial, setNewMaterial] = useState({
     title: '',
     subject: 'Mathematics',
+    category: 'Exam',
     fileType: 'PDF' as 'PDF' | 'DOCX' | 'ZIP',
     file: null as File | null
   });
@@ -476,6 +477,7 @@ export const TeacherDashboard = () => {
         id: Math.random().toString(36).substr(2, 9),
         title: newMaterial.title,
         subject: newMaterial.subject,
+        category: newMaterial.category,
         fileType: newMaterial.fileType,
         fileUrl: publicUrl,
         teacherId: currentTeacher.id,
@@ -1954,6 +1956,18 @@ export const TeacherDashboard = () => {
                     {learningAreas.map(la => (
                       <option key={la} value={la}>{la}</option>
                     ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-kenya-black ml-1">Category</label>
+                  <select 
+                    value={newMaterial.category}
+                    onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                  >
+                    <option value="Exam">Exam</option>
+                    <option value="Resource">Resource</option>
+                    <option value="Note">Note</option>
                   </select>
                 </div>
                 <div className="space-y-2">
