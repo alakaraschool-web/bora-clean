@@ -210,6 +210,23 @@ export const supabaseService = {
     return counts;
   },
 
+  async getTotalStudentsCount() {
+    const { count, error } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true });
+    if (error) throw error;
+    return count || 0;
+  },
+
+  async getActiveExamsCount() {
+    const { count, error } = await supabase
+      .from('exams')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'Active');
+    if (error) throw error;
+    return count || 0;
+  },
+
   // Exam Materials
   async getExamMaterials() {
     const { data, error } = await supabase
