@@ -95,6 +95,7 @@ export const PrincipalDashboard = () => {
   const [managingClass, setManagingClass] = useState<any>(null);
   const [academicSubTab, setAcademicSubTab] = useState<'overview' | 'create-exam' | 'learning-area' | 'grading' | 'analysis' | 'reports' | 'results-processing' | 'academic-settings' | 'merit-list' | 'marks-entry'>('overview');
   const [messages, setMessages] = useState<any[]>([]);
+  const [stagedStudents, setStagedStudents] = useState<any[]>([]);
   const [examMaterials, setExamMaterials] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState({ content: '', receiverId: '', type: 'direct' as 'direct' | 'broadcast', targetRole: 'teacher' });
   const [isUploadingMaterial, setIsUploadingMaterial] = useState(false);
@@ -557,6 +558,7 @@ export const PrincipalDashboard = () => {
       const newMarks = [...marks];
       const newStudentsToStage: any[] = [];
       const examId = selectedProcessingExamId;
+      const newStudents = [...students];
       
       if (!examId) {
         alert('Please select an examination first.');
@@ -584,6 +586,13 @@ export const PrincipalDashboard = () => {
           };
           newStudentsToStage.push(newStudentData);
           student = newStudentData;
+        } else if (student && selectedProcessingClass !== 'All') {
+          const studentIdx = newStudents.findIndex(s => s.adm === admNo);
+          if (studentIdx !== -1) {
+            newStudents[studentIdx] = { ...newStudents[studentIdx], class: selectedProcessingClass };
+            // Update student class in database
+            supabase.from('students').update({ class: selectedProcessingClass }).eq('id', newStudents[studentIdx].id).then();
+          }
         }
 
         if (student) {
@@ -618,6 +627,7 @@ export const PrincipalDashboard = () => {
       });
 
       setStagedMarks(newMarks);
+      setStudents(newStudents);
       setStagedNewStudents(newStudentsToStage);
       alert(`Bulk marks processed. ${newStudentsToStage.length > 0 ? `${newStudentsToStage.length} new students identified.` : ''} Please click "Save Changes" to finalize.`);
     };
@@ -641,7 +651,19 @@ export const PrincipalDashboard = () => {
               school_id: school.id
             })
           });
+          
+          if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Server error: ${errorText}`);
+          }
+          
           const result = await res.json();
+          
+          if (result.failed && result.failed.length > 0) {
+            console.error('Some students failed to sync:', result.failed);
+            alert(`Some students failed to sync: ${result.failed.map((f: any) => f.name).join(', ')}. Please check the console for details.`);
+          }
+          
           if (result.success) {
             // Refresh students to get real IDs
             const { data: refreshedStudents } = await supabase
@@ -1693,57 +1715,59 @@ export const PrincipalDashboard = () => {
         });
 
         setStudents(newStudents);
-
-        // Sync with Supabase via Server API
-        if (studentsToInsert.length > 0) {
-          fetch('/api/auth/bulk-create-students', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              students: studentsToInsert,
-              school_id: school.id
-            })
-          })
-          .then(res => res.json())
-          .then(result => {
-            if (result.success && result.success.length > 0) {
-              // Fetch updated students list to get real IDs and profiles
-              supabase.from('students').select('*').eq('school_id', school.id).then(({ data }) => {
-                if (data) {
-                  setStudents(data.map(s => ({
-                    id: s.id,
-                    name: s.name,
-                    adm: s.admission_number,
-                    class: s.class,
-                    status: s.status || 'Active',
-                    gender: s.gender || 'Male',
-                    upi_no: s.upi_no,
-                    kpsea_no: s.kpsea_no,
-                    dob: s.dob,
-                    admission_date: s.admission_date,
-                    parent_name: s.parent_name,
-                    parent_phone: s.parent_phone,
-                    house: s.house,
-                    profile_image: s.profile_image || null,
-                    password: s.password
-                  })));
-                }
-              });
-              alert(`Successfully imported ${result.success.length} students to ${className}! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
-            } else if (result.error) {
-              alert('Bulk import failed: ' + result.error);
-            }
-          })
-          .catch(err => {
-            console.error('Error syncing bulk students to class:', err);
-            alert('Bulk import failed. Please check your connection.');
-          });
-        }
+        setStagedStudents(prev => [...prev, ...studentsToInsert]);
+        alert(`Successfully staged ${studentsToInsert.length} students. Click Save to confirm import.`);
       } catch (err) {
         alert('Error parsing Excel file. Please ensure it follows the format: Name, Admission No');
       }
     };
     reader.readAsBinaryString(file);
+  };
+
+  const saveStagedStudents = async (className: string) => {
+    if (stagedStudents.length === 0) return;
+
+    try {
+      const result = await fetch('/api/auth/bulk-create-students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          students: stagedStudents,
+          school_id: school.id
+        })
+      }).then(res => res.json());
+
+      if (result.success && result.success.length > 0) {
+        // Fetch updated students list to get real IDs and profiles
+        const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
+        if (data) {
+          setStudents(data.map(s => ({
+            id: s.id,
+            name: s.name,
+            adm: s.admission_number,
+            class: s.class,
+            status: s.status || 'Active',
+            gender: s.gender || 'Male',
+            upi_no: s.upi_no,
+            kpsea_no: s.kpsea_no,
+            dob: s.dob,
+            admission_date: s.admission_date,
+            parent_name: s.parent_name,
+            parent_phone: s.parent_phone,
+            house: s.house,
+            profile_image: s.profile_image || null,
+            password: s.password
+          })));
+        }
+        setStagedStudents([]);
+        alert(`Successfully imported ${result.success.length} students to ${className}! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
+      } else if (result.error) {
+        alert('Bulk import failed: ' + result.error);
+      }
+    } catch (err) {
+      console.error('Error syncing bulk students to class:', err);
+      alert('Bulk import failed. Please check your connection.');
+    }
   };
 
   const removeStudent = async (id: string) => {
@@ -6601,6 +6625,16 @@ export const PrincipalDashboard = () => {
                         <Upload className="w-4 h-4" />
                         Bulk Import to {managingClass.name}
                       </Button>
+                      {stagedStudents.length > 0 && (
+                        <Button 
+                          size="sm"
+                          onClick={() => saveStagedStudents(managingClass.name)}
+                          className="gap-2 bg-kenya-green hover:bg-kenya-green/90"
+                        >
+                          <Save className="w-4 h-4" />
+                          Save {stagedStudents.length} Students
+                        </Button>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-4">
