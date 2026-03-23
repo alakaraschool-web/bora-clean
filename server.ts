@@ -17,6 +17,9 @@ async function startServer() {
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  
+  console.log('Supabase URL:', supabaseUrl);
+  console.log('Supabase Service Key exists:', !!supabaseServiceKey);
 
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
