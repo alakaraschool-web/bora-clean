@@ -1965,9 +1965,10 @@ export const TeacherDashboard = () => {
                     onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
                   >
-                    <option value="Exam">Exam</option>
-                    <option value="Resource">Resource</option>
-                    <option value="Note">Note</option>
+                    <option value="KJSEA Corner">KJSEA Corner</option>
+                    <option value="KPSEA Corner">KPSEA Corner</option>
+                    <option value="KCSE Resources">KCSE Resources</option>
+                    <option value="Schemes of Work">Schemes of Work</option>
                   </select>
                 </div>
                 <div className="space-y-2">
