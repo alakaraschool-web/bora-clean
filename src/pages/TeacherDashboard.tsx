@@ -512,7 +512,7 @@ export const TeacherDashboard = () => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.from('students').insert({
+      const { data, error } = await supabase.from('students').upsert({
         name: newStudent.name,
         admission_number: newStudent.adm,
         class: managedClass.name,
@@ -526,7 +526,7 @@ export const TeacherDashboard = () => {
         house: newStudent.house,
         school_id: currentTeacher.school_id,
         status: 'Active'
-      }).select().single();
+      }, { onConflict: 'admission_number' }).select().single();
 
       if (error) throw error;
 

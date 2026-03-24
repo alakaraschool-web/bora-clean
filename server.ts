@@ -130,9 +130,19 @@ async function startServer() {
             authUserId = authData.user.id;
           }
 
+          // Check if student record already exists by admission_number
+          const { data: existingStudent } = await supabaseAdmin
+            .from('students')
+            .select('id')
+            .eq('admission_number', admission_number)
+            .eq('school_id', school_id)
+            .single();
+
+          const studentIdToUse = existingStudent ? existingStudent.id : authUserId;
+
           // 2. Create Student Record
           const { data: studentData, error: studentError } = await supabaseAdmin.from('students').upsert({
-            id: authUserId,
+            id: studentIdToUse,
             name,
             admission_number,
             class: className,
