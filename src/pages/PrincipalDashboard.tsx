@@ -1211,7 +1211,7 @@ export const PrincipalDashboard = () => {
         const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
-        const response = await fetch('/api/auth/create-user', {
+        const response = await fetch(`${window.location.origin}/api/auth/create-user`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1357,7 +1357,7 @@ export const PrincipalDashboard = () => {
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account and Profile via Server API
-        const response = await fetch('/api/auth/create-user', {
+        const response = await fetch(`${window.location.origin}/api/auth/create-user`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
