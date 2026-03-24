@@ -466,32 +466,51 @@ export const PrincipalDashboard = () => {
         }
 
         // Fetch School Settings
-        const { data: settingsData } = await supabase
-          .from('school_settings')
-          .select('*')
-          .eq('school_id', school.id)
-          .single();
-        if (settingsData) {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const response = await fetch(`${supabaseUrl}/rest/v1/school_settings?select=*&school_id=eq.${school.id}`, {
+          headers: {
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Accept': 'application/json',
+          },
+        });
+        const settingsData = await response.json();
+        const settings = Array.isArray(settingsData) ? settingsData[0] : settingsData;
+        
+        if (settings) {
           setSchoolSettings({
-            name: settingsData.name || school.name,
-            motto: settingsData.motto || '',
-            address: settingsData.address || '',
-            website: settingsData.website || '',
-            phone: settingsData.phone || '',
-            email: settingsData.email || '',
-            logo: settingsData.logo_url || null,
-            letterheadTemplate: settingsData.letterhead_template || 'standard'
+            name: settings.name || school.name,
+            motto: settings.motto || '',
+            address: settings.address || '',
+            website: settings.website || '',
+            phone: settings.phone || '',
+            email: settings.email || '',
+            logo: settings.logo_url || null,
+            letterheadTemplate: settings.letterhead_template || 'standard'
           });
-          if (settingsData.grading_system) {
-            setGradingSystem(settingsData.grading_system as any[]);
+          if (settings.grading_system) {
+            setGradingSystem(settings.grading_system as any[]);
           }
         }
 
         // Fetch Messages
+        const principalId = principalProfile?.id;
+        const schoolId = school.id;
+        
+        let filter = [];
+        if (principalId) {
+            filter.push(`sender_id.eq.${principalId}`);
+            filter.push(`receiver_id.eq.${principalId}`);
+        }
+        filter.push(`and(type.eq.broadcast,target_role.eq.principal,school_id.eq.${schoolId})`);
+        
+        const filterString = filter.join(',');
+
         const { data: messagesData } = await supabase
           .from('messages')
           .select('*, sender:profiles!sender_id(name, role)')
-          .or(`sender_id.eq.${principalProfile?.id},receiver_id.eq.${principalProfile?.id},and(type.eq.broadcast,target_role.eq.principal,school_id.eq.${school.id})`)
+          .or(filterString)
           .order('created_at', { ascending: true });
         if (messagesData) setMessages(messagesData);
 
