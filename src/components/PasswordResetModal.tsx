@@ -153,12 +153,15 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
 
       // 2. Update Auth password via server-side API
       try {
-        const { error: authError } = await supabase.functions.invoke('reset-password', {
-          body: { profileId: targetProfileId, newPassword }
+        const response = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profileId: targetProfileId, newPassword })
         });
         
-        if (authError) {
-          console.warn('Auth reset failed, but profile updated:', authError.message);
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.warn('Auth reset failed, but profile updated:', errorData.error);
           // We don't throw here to avoid confusing the user, 
           // but we log it for debugging. 
           // The profile update is the primary "fallback" reset.

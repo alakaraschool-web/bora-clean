@@ -97,11 +97,13 @@ export const TeacherLogin = () => {
             // User exists in profiles but Auth failed (likely password mismatch after reset)
             // Try to sync Auth password via server-side API
             try {
-              const { data: syncData, error: syncError } = await supabase.functions.invoke('reset-password', {
-                body: { profileId: profileExists.id, newPassword: password }
+              const syncResponse = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profileId: profileExists.id, newPassword: password })
               });
               
-              if (!syncError) {
+              if (syncResponse.ok) {
                 // Sync successful, try to sign in again
                 const { data: retryAuth, error: retryError } = await supabase.auth.signInWithPassword({
                   email: dummyEmail,
