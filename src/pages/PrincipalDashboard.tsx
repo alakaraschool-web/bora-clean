@@ -643,21 +643,16 @@ export const PrincipalDashboard = () => {
         // 1. Sync new students first if any
         let finalStudents = [...students];
         if (stagedNewStudents.length > 0) {
-          const res = await fetch('/api/auth/bulk-create-students', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          const { data, error } = await supabase.functions.invoke('bulk-create-students', {
+            body: {
               students: stagedNewStudents,
               school_id: school.id
-            })
+            }
           });
           
-          if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Server error: ${errorText}`);
-          }
+          if (error) throw new Error(error.message);
           
-          const result = await res.json();
+          const result = data;
           
           if (result.failed && result.failed.length > 0) {
             console.error('Some students failed to sync:', result.failed);
@@ -1216,21 +1211,19 @@ export const PrincipalDashboard = () => {
         const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
-        const response = await fetch('/api/auth/create-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        const { data, error } = await supabase.functions.invoke('create-user', {
+          body: {
             email: dummyEmail,
             password: password,
             role: newStaff.role.toLowerCase(),
             name: newStaff.name,
             phone: finalPhone,
             school_id: school.id
-          })
+          }
         });
 
-        const authResult = await response.json();
-        if (!response.ok) throw new Error(authResult.error || 'Failed to create staff account');
+        if (error) throw new Error(error.message);
+        const authResult = data;
 
         const authUserId = authResult.user.id;
 
@@ -1621,21 +1614,16 @@ export const PrincipalDashboard = () => {
         // Sync with Supabase via Server API
         if (studentsToInsert.length > 0) {
           try {
-            const response = await fetch('/api/auth/bulk-create-students', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
+            const { data, error } = await supabase.functions.invoke('bulk-create-students', {
+              body: {
                 students: studentsToInsert,
                 school_id: school.id
-              })
+              }
             });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Server error: ${errorText}`);
-          }
-
-          const result = await response.json();
+            
+            if (error) throw new Error(error.message);
+            
+            const result = data;
           if (result.success && result.success.length > 0) {
             // Fetch updated students list to get real IDs and profiles
             const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
@@ -1735,22 +1723,16 @@ export const PrincipalDashboard = () => {
 
     try {
       console.log('Saving students:', stagedStudents);
-      const response = await fetch('/api/auth/bulk-create-students', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('bulk-create-students', {
+        body: {
           students: stagedStudents,
           school_id: school.id
-        })
+        }
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server error response:', errorText);
-        throw new Error(`Server error: ${errorText}`);
-      }
+      if (error) throw new Error(error.message);
 
-      const result = await response.json();
+      const result = data;
       console.log('Bulk import result:', result);
 
       if (result.success && result.success.length > 0) {
