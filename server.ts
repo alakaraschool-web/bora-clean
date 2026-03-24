@@ -178,8 +178,72 @@ async function startServer() {
   });
 
   // API Route to create a user using Service Role Key
-  // Removed in favor of Supabase Edge Function
+  app.post('/api/auth/create-user', async (req, res) => {
+    const { email, password, role, name, phone, school_id, student_id } = req.body;
 
+    if (!email || !password || !role || !name || !school_id) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    try {
+      // 1. Create Auth Account
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name, role, school_id }
+      });
+
+      if (authError) {
+        // Check if user already exists
+        if (authError.message.includes('already registered')) {
+          // Find the user
+          const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+          if (listError) throw listError;
+          const existingUser = users.users.find((u: any) => u.email === email);
+          if (existingUser) {
+            // Update profile if needed
+            const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+              id: existingUser.id,
+              user_id: existingUser.id,
+              name,
+              email,
+              phone,
+              role,
+              school_id,
+              student_id,
+              password,
+              must_change_password: true
+            });
+            if (profileError) throw profileError;
+            return res.json({ success: true, user: existingUser, message: 'User already existed, profile updated' });
+          }
+        }
+        throw authError;
+      }
+
+      // 2. Create Profile Record
+      const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+        id: authData.user.id,
+        user_id: authData.user.id,
+        name,
+        email,
+        phone,
+        role,
+        school_id,
+        student_id,
+        password,
+        must_change_password: true
+      });
+
+      if (profileError) throw profileError;
+
+      res.json({ success: true, user: authData.user });
+    } catch (error: any) {
+      console.error('Server Create User Error:', error);
+      res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+  });
 
   // API Route to reset Auth password using Service Role Key
   app.post('/api/auth/reset-password', async (req, res) => {

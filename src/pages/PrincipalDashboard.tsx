@@ -1211,19 +1211,21 @@ export const PrincipalDashboard = () => {
         const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
-        const { data, error } = await supabase.functions.invoke('create-user', {
-          body: {
+        const response = await fetch('/api/auth/create-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             email: dummyEmail,
             password: password,
             role: newStaff.role.toLowerCase(),
             name: newStaff.name,
             phone: finalPhone,
             school_id: school.id
-          }
+          })
         });
 
-        if (error) throw new Error(error.message);
-        const authResult = data;
+        const authResult = await response.json();
+        if (!response.ok) throw new Error(authResult.error || 'Failed to create staff account');
 
         const authUserId = authResult.user.id;
 
