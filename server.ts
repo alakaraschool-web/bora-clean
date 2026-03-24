@@ -185,14 +185,17 @@ async function startServer() {
 
   // API Route to create a user using Service Role Key
   app.post('/api/auth/create-user', async (req, res) => {
+    console.log('Create user request body:', req.body);
     const { email, password, role, name, phone, school_id, student_id } = req.body;
 
     if (!email || !password || !role || !name || !school_id) {
+      console.error('Missing required fields:', { email, password, role, name, school_id });
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     try {
       // 1. Create Auth Account
+      console.log('Creating auth account for:', email);
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
@@ -201,6 +204,7 @@ async function startServer() {
       });
 
       if (authError) {
+        console.error('Auth error:', authError);
         // Check if user already exists
         if (authError.message.includes('already registered')) {
           // Find the user
@@ -229,6 +233,7 @@ async function startServer() {
       }
 
       // 2. Create Profile Record
+      console.log('Creating profile for:', authData.user.id);
       const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
         id: authData.user.id,
         user_id: authData.user.id,
