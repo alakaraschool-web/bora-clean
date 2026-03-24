@@ -105,7 +105,6 @@ async function startServer() {
         const password = 'password123';
 
         try {
-          console.log('Processing student:', student);
           // 1. Create Auth Account
           const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email: dummyEmail,
@@ -170,8 +169,7 @@ async function startServer() {
       res.json(results);
     } catch (error: any) {
       console.error('Server Bulk Create Error:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      res.status(500).json({ error: errorMessage || 'Internal server error' });
+      res.status(500).json({ error: error.message || 'Internal server error' });
     }
   });
 
