@@ -651,13 +651,19 @@ export const PrincipalDashboard = () => {
               school_id: school.id
             })
           });
-          
-          if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Server error: ${errorText}`);
+
+          const text = await res.text();
+          let result;
+          try {
+            result = text ? JSON.parse(text) : {};
+          } catch (e) {
+            console.error('Invalid JSON response:', text);
+            throw new Error('Server returned invalid JSON');
           }
-          
-          const result = await res.json();
+
+          if (!res.ok) {
+            throw new Error(result.error || 'Request failed');
+          }
           
           if (result.failed && result.failed.length > 0) {
             console.error('Some students failed to sync:', result.failed);
@@ -1229,8 +1235,18 @@ export const PrincipalDashboard = () => {
           })
         });
 
-        const authResult = await response.json();
-        if (!response.ok) throw new Error(authResult.error || 'Failed to create staff account');
+        const text = await response.text();
+        let authResult;
+        try {
+          authResult = text ? JSON.parse(text) : {};
+        } catch (e) {
+          console.error('Invalid JSON response:', text);
+          throw new Error('Server returned invalid JSON');
+        }
+
+        if (!response.ok) {
+          throw new Error(authResult.error || 'Failed to create staff account');
+        }
 
         const authUserId = authResult.user.id;
 
@@ -1375,8 +1391,18 @@ export const PrincipalDashboard = () => {
           })
         });
 
-        const authResult = await response.json();
-        if (!response.ok) throw new Error(authResult.error || 'Failed to create student account');
+        const text = await response.text();
+        let authResult;
+        try {
+          authResult = text ? JSON.parse(text) : {};
+        } catch (e) {
+          console.error('Invalid JSON response:', text);
+          throw new Error('Server returned invalid JSON');
+        }
+
+        if (!response.ok) {
+          throw new Error(authResult.error || 'Failed to create student account');
+        }
 
         const authUserId = authResult.user.id;
 
@@ -1630,13 +1656,20 @@ export const PrincipalDashboard = () => {
               })
             });
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Bulk create students server error response:', errorText);
-            throw new Error(`Server error: ${errorText}`);
-          }
+            const text = await response.text();
+            let parsedResult;
+            try {
+              parsedResult = text ? JSON.parse(text) : {};
+            } catch (e) {
+              console.error('Invalid JSON response:', text);
+              throw new Error('Server returned invalid JSON');
+            }
 
-          const result = await response.json();
+            if (!response.ok) {
+              throw new Error(parsedResult.error || 'Request failed');
+            }
+
+            const result = parsedResult;
           if (result.success && result.success.length > 0) {
             // Fetch updated students list to get real IDs and profiles
             const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
@@ -1745,13 +1778,18 @@ export const PrincipalDashboard = () => {
         })
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server error response:', errorText);
-        throw new Error(`Server error: ${errorText}`);
+      const text = await response.text();
+      let result;
+      try {
+        result = text ? JSON.parse(text) : {};
+      } catch (e) {
+        console.error('Invalid JSON response:', text);
+        throw new Error('Server returned invalid JSON');
       }
 
-      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Request failed');
+      }
       console.log('Bulk import result:', result);
 
       if (result.success && result.success.length > 0) {

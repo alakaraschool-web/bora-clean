@@ -114,11 +114,24 @@ export const PrincipalLogin = () => {
             // User exists in profiles but Auth failed (likely password mismatch after reset)
             // Try to sync Auth password via server-side API
             try {
-              const { data: syncData, error: syncError } = await supabase.functions.invoke('reset-password', {
-                body: { profileId: profileExists.id, newPassword: password }
+              const syncResponse = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profileId: profileExists.id, newPassword: password })
               });
-              
-              if (!syncError) {
+
+              const text = await syncResponse.text();
+              let syncData;
+              try {
+                syncData = text ? JSON.parse(text) : {};
+              } catch (e) {
+                console.error('Invalid JSON response:', text);
+                throw new Error('Server returned invalid JSON');
+              }
+
+              if (!syncResponse.ok) {
+                throw new Error(syncData.error || 'Request failed');
+              }
                 // Sync successful, try to sign in again
                 const { data: retryAuth, error: retryError } = await supabase.auth.signInWithPassword({
                   email: dummyEmail,

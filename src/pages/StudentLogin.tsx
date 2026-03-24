@@ -91,14 +91,29 @@ export const StudentLogin = () => {
       const isAdm = sanitizedInput.includes('-') || sanitizedInput.length > 5;
       if (isAdm && !isPhone) {
         try {
-          const { data: verifyData, error: verifyError } = await supabase.functions.invoke('student-login-verify', {
-            body: {
+          const verifyResponse = await fetch('/api/auth/student-login-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
               admissionNumber: sanitizedInput,
               namePart: password
-            }
+            })
           });
 
-          if (!verifyError && verifyData.success) {
+          const text = await verifyResponse.text();
+          let verifyData;
+          try {
+            verifyData = text ? JSON.parse(text) : {};
+          } catch (e) {
+            console.error('Invalid JSON response:', text);
+            throw new Error('Server returned invalid JSON');
+          }
+
+          if (!verifyResponse.ok) {
+            throw new Error(verifyData.error || 'Request failed');
+          }
+
+          if (verifyData.success) {
             // Use the returned email and password to sign in via Auth
             const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
               email: verifyData.email,
