@@ -11,13 +11,14 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
+    "@google/genai": "^1.46.0",
     "@supabase/supabase-js": "^2.97.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "firebase": "^12.11.0",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "jszip": "^3.10.1",

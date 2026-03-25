@@ -47,6 +47,8 @@ import { useState, FormEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { NotificationBell, addNotification } from '../components/NotificationBell';
+import { UserManagement } from '../components/UserManagement';
+import { ImageAI } from '../components/ImageAI';
 
 interface School {
   id: string;
@@ -87,12 +89,14 @@ export const SuperAdminDashboard = () => {
   const navigate = useNavigate();
   const [adminProfile, setAdminProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'schools' | 'analytics' | 'exams' | 'stories' | 'users'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'schools' | 'analytics' | 'exams' | 'stories' | 'users' | 'image-ai'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [totalStudents, setTotalStudents] = useState(0);
   const [activeExamsCount, setActiveExamsCount] = useState(0);
   const [users, setUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // ... (rest of the component)
 
   const resetSystemData = async () => {
     if (window.confirm('WARNING: This will delete ALL students, exams, and marks across ALL schools. This action cannot be undone. Are you sure?')) {
@@ -119,6 +123,34 @@ export const SuperAdminDashboard = () => {
       }
     }
   };
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      {/* Sidebar and Main Content */}
+      <div className="flex">
+        {/* Sidebar */}
+        <aside className={`w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 min-h-screen ${isSidebarOpen ? 'block' : 'hidden md:block'}`}>
+          <div className="p-6">
+            <h1 className="text-xl font-bold text-kenya-green">Super Admin</h1>
+          </div>
+          <nav className="mt-6">
+            <button onClick={() => setActiveTab('dashboard')} className={`w-full text-left p-4 ${activeTab === 'dashboard' ? 'bg-gray-100 dark:bg-gray-700' : ''}`}>Dashboard</button>
+            <button onClick={() => setActiveTab('schools')} className={`w-full text-left p-4 ${activeTab === 'schools' ? 'bg-gray-100 dark:bg-gray-700' : ''}`}>Schools</button>
+            <button onClick={() => setActiveTab('users')} className={`w-full text-left p-4 ${activeTab === 'users' ? 'bg-gray-100 dark:bg-gray-700' : ''}`}>Users</button>
+            <button onClick={() => setActiveTab('image-ai')} className={`w-full text-left p-4 ${activeTab === 'image-ai' ? 'bg-gray-100 dark:bg-gray-700' : ''}`}>Image AI</button>
+          </nav>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 p-8">
+          {activeTab === 'dashboard' && <div>Dashboard Content</div>}
+          {activeTab === 'schools' && <div>Schools Content</div>}
+          {activeTab === 'users' && <UserManagement />}
+          {activeTab === 'image-ai' && <ImageAI />}
+        </main>
+      </div>
+    </div>
+  );
 
   useEffect(() => {
     const checkSession = async () => {

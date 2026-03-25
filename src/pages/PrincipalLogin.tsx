@@ -142,7 +142,6 @@ export const PrincipalLogin = () => {
                   data = { user: retryAuth.user, session: retryAuth.session };
                   authError = null;
                 }
-              }
             } catch (syncErr) {
               console.error('Auth sync failed:', syncErr);
             }
