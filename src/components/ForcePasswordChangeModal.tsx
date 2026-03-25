@@ -32,10 +32,12 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
 
     setIsLoading(true);
     try {
+      console.log('Attempting to update user password...');
       // 1. Update Supabase Auth password
-      const { error: authError } = await supabase.auth.updateUser({
+      const { data, error: authError } = await supabase.auth.updateUser({
         password: newPassword
       });
+      console.log('updateUser result:', { data, authError });
 
       if (authError) throw authError;
 
