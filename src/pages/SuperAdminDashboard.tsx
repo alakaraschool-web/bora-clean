@@ -154,9 +154,11 @@ export const SuperAdminDashboard = () => {
 
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log('checkSession session:', session, 'error:', error);
       
       if (!session) {
+        console.warn('Auth session missing! Navigating to /super-admin');
         navigate('/super-admin');
         return;
       }

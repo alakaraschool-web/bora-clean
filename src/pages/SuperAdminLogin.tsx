@@ -82,12 +82,17 @@ export const SuperAdminLogin = () => {
       const dummyEmail = isEmail ? sanitizedInput.toLowerCase() : `${cleanPhone}@superadmin.boraschool.ke`;
 
       // 1. Try Supabase Auth
+      console.log('Attempting sign-in for:', isEmail ? sanitizedInput : dummyEmail);
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: isEmail ? sanitizedInput : dummyEmail,
         password: password
       });
 
+      console.log('Auth sign-in result:', { authData, authError });
+
       if (!authError && authData?.user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Session after sign-in:', session);
         console.log('Auth sign-in successful, fetching profile for:', authData.user.id);
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
