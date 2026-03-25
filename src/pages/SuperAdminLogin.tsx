@@ -79,7 +79,7 @@ export const SuperAdminLogin = () => {
       const isEmail = sanitizedInput.includes('@');
       const cleanPhone = sanitizedInput.replace(/\s+/g, '');
       const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`;
-      const dummyEmail = isEmail ? sanitizedInput.toLowerCase() : `${cleanPhone}@superadmin.boraschool.ke`;
+      const dummyEmail = isEmail ? sanitizedInput.toLowerCase() : `admin_${cleanPhone}@superadmin.boraschool.ke`;
 
       // 1. Try Supabase Auth
       console.log('Attempting sign-in for:', isEmail ? sanitizedInput : dummyEmail);

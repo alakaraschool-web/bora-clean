@@ -119,7 +119,7 @@ export const SchoolRegistration = () => {
           id: authData.user.id,
           user_id: authData.user.id,
           name: formData.principalName,
-          email: `${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
+          email: `user_${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
           phone: sanitizedPhone,
           role: 'principal',
           school_id: schoolData.id,
