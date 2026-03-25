@@ -72,26 +72,15 @@ export const TeacherLogin = () => {
         password
       });
 
-      // Fallback to dummy email if phone login fails
       if (authError) {
-        const dummyEmail = `user_${cleanPhone}@boraschool.ke`;
-        const { data: emailData, error: emailError } = await supabase.auth.signInWithPassword({
-          email: dummyEmail,
-          password
-        });
-        
-        if (!emailError) {
-          data = emailData;
-          authError = null;
-        } else {
-          // If both Auth attempts fail, check if the user exists in profiles
-          // but don't log them in without a session.
-          const { data: profileExists } = await supabase
-            .from('profiles')
-            .select('id, password, role')
-            .eq('phone', cleanPhone)
-            .eq('role', 'teacher')
-            .maybeSingle();
+        // If Auth fails, check if the user exists in profiles
+        // but don't log them in without a session.
+        const { data: profileExists } = await supabase
+          .from('profiles')
+          .select('id, password, role')
+          .eq('phone', cleanPhone)
+          .eq('role', 'teacher')
+          .maybeSingle();
 
           if (profileExists && profileExists.password === password) {
             // User exists in profiles but Auth failed (likely password mismatch after reset)
