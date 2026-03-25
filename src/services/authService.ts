@@ -94,7 +94,7 @@ export const authService = {
       .maybeSingle();
 
     if (profileError || !profile) {
-      const dummyEmail = `${admissionNumber.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
+      const dummyEmail = `student_${admissionNumber.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
       return { 
         success: true, 
         email: dummyEmail, 
@@ -118,7 +118,7 @@ export const authService = {
 
     for (const student of students) {
       const { name, admission_number, class: className, gender, phone } = student;
-      const dummyEmail = `${admission_number.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
+      const dummyEmail = `student_${admission_number.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
       const password = 'password123';
 
       try {

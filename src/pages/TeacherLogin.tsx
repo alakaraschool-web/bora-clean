@@ -74,7 +74,7 @@ export const TeacherLogin = () => {
 
       // Fallback to dummy email if phone login fails
       if (authError) {
-        const dummyEmail = `${cleanPhone}@boraschool.ke`;
+        const dummyEmail = `user_${cleanPhone}@boraschool.ke`;
         const { data: emailData, error: emailError } = await supabase.auth.signInWithPassword({
           email: dummyEmail,
           password

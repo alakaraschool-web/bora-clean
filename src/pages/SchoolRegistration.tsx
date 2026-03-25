@@ -76,7 +76,7 @@ export const SchoolRegistration = () => {
 
     try {
       const sanitizedPhone = formData.principalPhone.replace(/\s+/g, '');
-      const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
+      const dummyEmail = `user_${sanitizedPhone}@boraschool.ke`;
 
       // 1. Sign up user in Supabase Auth using email (more reliable than phone in this setup)
       const { data: authData, error: authError } = await supabase.auth.signUp({

@@ -1238,7 +1238,7 @@ export const PrincipalDashboard = () => {
       const password = Math.random().toString(36).slice(-8);
       
       try {
-        const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
+        const dummyEmail = `user_${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
         const response = await fetch('/api/auth/create-user', {
@@ -1393,7 +1393,7 @@ export const PrincipalDashboard = () => {
 
         // Use ADM number to generate a virtual phone number for Auth
         const studentPhone = `+254${newStudent.adm.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
-        const dummyEmail = `${studentPhone.replace('+', '')}@student.boraschool.ke`;
+        const dummyEmail = `student_${studentPhone.replace('+', '')}@student.boraschool.ke`;
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account and Profile via Server API
