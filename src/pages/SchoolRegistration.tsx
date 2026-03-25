@@ -76,11 +76,11 @@ export const SchoolRegistration = () => {
 
     try {
       const sanitizedPhone = formData.principalPhone.replace(/\s+/g, '');
-      const dummyEmail = `user_${sanitizedPhone}@boraschool.ke`;
+      const email = formData.principalEmail;
 
-      // 1. Sign up user in Supabase Auth using email (more reliable than phone in this setup)
+      // 1. Sign up user in Supabase Auth using email
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: dummyEmail,
+        email: email,
         password: formData.password,
         options: {
           data: {
@@ -119,7 +119,7 @@ export const SchoolRegistration = () => {
           id: authData.user.id,
           user_id: authData.user.id,
           name: formData.principalName,
-          email: `user_${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
+          email: formData.principalEmail,
           phone: sanitizedPhone,
           role: 'principal',
           school_id: schoolData.id,
@@ -303,6 +303,22 @@ export const SchoolRegistration = () => {
                       onChange={handleInputChange}
                       className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 font-bold"
                       placeholder="Principal Name"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Email Address</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      name="principalEmail"
+                      type="email"
+                      required
+                      value={formData.principalEmail || ''}
+                      onChange={handleInputChange}
+                      className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 font-bold"
+                      placeholder="e.g. principal@school.ke"
                     />
                   </div>
                 </div>
