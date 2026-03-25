@@ -10,12 +10,48 @@ import { supabase } from '../lib/supabase';
 export const SuperAdminLogin = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showResetModal, setShowResetModal] = useState(false);
   const [showForceChange, setShowForceChange] = useState(false);
   const [pendingProfileId, setPendingProfileId] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password !== passwordConfirm) {
+      setError('Passwords do not match');
+      return;
+    }
+    setIsLoading(true);
+    setError('');
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: username,
+        password: password,
+        options: { data: { role: 'super-admin', name } }
+      });
+      if (signUpError) throw signUpError;
+      if (data.user) {
+        await supabase.from('profiles').insert({
+          id: data.user.id,
+          user_id: data.user.id,
+          email: username,
+          role: 'super-admin',
+          name: name
+        });
+        setError('Registration successful. Please log in.');
+        setIsRegistering(false);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Check if already logged in as super-admin
@@ -289,7 +325,7 @@ export const SuperAdminLogin = () => {
             <p className="text-xs text-gray-500 uppercase tracking-wider">Secure node access required for administrative privileges.</p>
           </div>
 
-          <form className="space-y-6" onSubmit={handleLogin}>
+          <form className="space-y-6" onSubmit={isRegistering ? handleRegister : handleLogin}>
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -5 }}
@@ -297,13 +333,36 @@ export const SuperAdminLogin = () => {
                 className="bg-kenya-red/10 border border-kenya-red/30 text-kenya-red px-4 py-3 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-3"
               >
                 <ShieldAlert className="w-4 h-4" />
-                Error: {error}
+                {error}
               </motion.div>
+            )}
+
+            {isRegistering && (
+              <div>
+                <label htmlFor="name" className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <User className="h-4 w-4 text-kenya-green" />
+                  </div>
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="block w-full pl-11 pr-4 py-3 bg-black/40 border border-white/10 rounded-lg text-white placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-kenya-green focus:border-kenya-green transition-all text-sm"
+                    placeholder="John Doe"
+                  />
+                </div>
+              </div>
             )}
 
             <div>
               <label htmlFor="username" className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-                Operator ID
+                {isRegistering ? 'Email Address' : 'Operator ID'}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -312,12 +371,12 @@ export const SuperAdminLogin = () => {
                 <input
                   id="username"
                   name="username"
-                  type="text"
+                  type={isRegistering ? 'email' : 'text'}
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="block w-full pl-11 pr-4 py-3 bg-black/40 border border-white/10 rounded-lg text-white placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-kenya-green focus:border-kenya-green transition-all text-sm"
-                  placeholder="ADMIN_01"
+                  placeholder={isRegistering ? 'admin@boraschool.ke' : 'ADMIN_01'}
                 />
               </div>
             </div>
@@ -343,11 +402,41 @@ export const SuperAdminLogin = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
+            {isRegistering && (
+              <div>
+                <label htmlFor="passwordConfirm" className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                  Confirm Access Key
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-kenya-green" />
+                  </div>
+                  <input
+                    id="passwordConfirm"
+                    name="passwordConfirm"
+                    type="password"
+                    required
+                    value={passwordConfirm}
+                    onChange={(e) => setPasswordConfirm(e.target.value)}
+                    className="block w-full pl-11 pr-4 py-3 bg-black/40 border border-white/10 rounded-lg text-white placeholder-gray-700 focus:outline-none focus:ring-1 focus:ring-kenya-green focus:border-kenya-green transition-all text-sm"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : (isRegistering ? 'Register' : 'Authenticate')}
+            </Button>
+            
+            <button 
+              type="button"
+              onClick={() => setIsRegistering(!isRegistering)}
+              className="w-full text-center text-[10px] text-gray-500 hover:text-white uppercase tracking-widest transition-colors"
+            >
+              {isRegistering ? 'Back to Login' : 'Register New Super Admin'}
+            </button>
+          </form>
                   type="checkbox"
                   className="h-3 w-3 bg-black border-white/10 text-kenya-green focus:ring-kenya-green rounded"
                 />
