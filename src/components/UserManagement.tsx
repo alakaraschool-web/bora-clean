@@ -2,9 +2,16 @@ import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Button } from './Button';
+import { supabase } from '../lib/supabase';
 
 export const UserManagement = () => {
   const [users, setUsers] = useState<any[]>([]);
+  const [showRegister, setShowRegister] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -16,8 +23,46 @@ export const UserManagement = () => {
     fetchUsers();
   }, []);
 
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+    try {
+      // 1. Sign up user
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { role: 'super-admin', name } }
+      });
+      if (signUpError) throw signUpError;
+      
+      if (data.user) {
+        // 2. Insert profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: data.user.id,
+            user_id: data.user.id,
+            email,
+            role: 'super-admin',
+            name
+          });
+        if (profileError) throw profileError;
+        
+        alert('Super Admin registered successfully');
+        setShowRegister(false);
+        setEmail('');
+        setPassword('');
+        setName('');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleResetPassword = async (userId: string) => {
-    // In a real app, you'd use Firebase Auth to send a password reset email
     alert(`Password reset for ${userId}`);
   };
 
@@ -29,7 +74,24 @@ export const UserManagement = () => {
 
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">User Management</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">User Management</h2>
+        <Button onClick={() => setShowRegister(!showRegister)}>
+          {showRegister ? 'Cancel' : 'Register New Super Admin'}
+        </Button>
+      </div>
+
+      {showRegister && (
+        <form onSubmit={handleRegister} className="mb-6 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
+          <h3 className="text-lg font-bold mb-2">Register New Super Admin</h3>
+          {error && <p className="text-red-500 mb-2">{error}</p>}
+          <input type="text" placeholder="Name" value={name} onChange={e => setName(e.target.value)} className="w-full mb-2 p-2 rounded" required />
+          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="w-full mb-2 p-2 rounded" required />
+          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full mb-4 p-2 rounded" required />
+          <Button type="submit" disabled={isLoading}>{isLoading ? 'Registering...' : 'Register'}</Button>
+        </form>
+      )}
+
       <table className="min-w-full bg-white dark:bg-gray-800">
         <thead>
           <tr>
