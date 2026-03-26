@@ -240,50 +240,6 @@ export const SuperAdminLogin = () => {
     navigate('/super-admin/dashboard');
   };
 
-  const handleCreatePrototypeAdmin = async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      const email = 'bahatisolomon70@gmail.com';
-      const password = 'Godalways@95';
-      
-      // Check if profile exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (existingProfile) {
-        setError('Prototype admin already exists.');
-      } else {
-        // Sign up
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: email,
-          password: password,
-          options: { data: { role: 'super-admin' } }
-        });
-        
-        if (signUpError) throw signUpError;
-        
-        if (signUpData.user) {
-          await supabase.from('profiles').insert({
-            id: signUpData.user.id,
-            user_id: signUpData.user.id,
-            email: email,
-            role: 'super-admin',
-            name: 'Prototype Admin',
-            must_change_password: false
-          });
-          setError('Prototype admin created successfully. Please log in.');
-        }
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-mono">
@@ -457,14 +413,6 @@ export const SuperAdminLogin = () => {
               {isLoading ? 'Decrypting...' : 'Initialize Session'}
             </Button>
 
-            <Button
-              type="button"
-              onClick={handleCreatePrototypeAdmin}
-              className="w-full bg-white/10 hover:bg-white/20 text-white font-bold uppercase tracking-[0.2em] text-xs py-4 rounded-lg"
-              disabled={isLoading}
-            >
-              Create Prototype Admin
-            </Button>
           </form>
 
           <div className="mt-10 pt-6 border-t border-white/5">

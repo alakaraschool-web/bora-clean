@@ -124,6 +124,49 @@ export const SuperAdminDashboard = () => {
     }
   };
 
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      console.log('checkSession session:', session, 'error:', error);
+      
+      if (!session) {
+        console.warn('Auth session missing! Navigating to /super-admin');
+        navigate('/super-admin');
+        return;
+      }
+
+      // Fetch admin data based on session
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
+        .maybeSingle();
+
+      if (profile && profile.role === 'super-admin') {
+        setAdminProfile(profile);
+        localStorage.setItem('alakara_super_admin', JSON.stringify(profile));
+        // fetchAllData(); // Uncomment if fetchAllData is defined
+      } else {
+        navigate('/super-admin');
+      }
+      setIsLoading(false);
+    };
+
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        navigate('/super-admin');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       {/* Sidebar and Main Content */}
@@ -151,45 +194,6 @@ export const SuperAdminDashboard = () => {
       </div>
     </div>
   );
-
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      console.log('checkSession session:', session, 'error:', error);
-      
-      if (!session) {
-        console.warn('Auth session missing! Navigating to /super-admin');
-        navigate('/super-admin');
-        return;
-      }
-
-      // Fetch admin data based on session
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
-        .maybeSingle();
-
-      if (profile && profile.role === 'super-admin') {
-        setAdminProfile(profile);
-        localStorage.setItem('alakara_super_admin', JSON.stringify(profile));
-        fetchAllData();
-      } else {
-        navigate('/super-admin');
-      }
-      setIsLoading(false);
-    };
-
-    checkSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        navigate('/super-admin');
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);

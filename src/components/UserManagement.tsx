@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Button } from './Button';
@@ -23,7 +23,7 @@ export const UserManagement = () => {
     fetchUsers();
   }, []);
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleRegister = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
