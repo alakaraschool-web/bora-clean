@@ -69,6 +69,9 @@ export const PrincipalLogin = () => {
     setIsLoading(true);
     setError('');
 
+    const dummyEmail = `${phone.replace('+', '')}@boraschool.ke`;
+    const emailError = null;
+
     // Safety timeout to prevent infinite loading state
     const timeoutId = setTimeout(() => {
       if (isLoading) {
@@ -173,14 +176,7 @@ export const PrincipalLogin = () => {
             throw authError || emailError;
           }
         }
-      } catch (err: any) {
-        console.error('Login error:', err);
-        setError(err.message || 'An unexpected error occurred during login');
-      } finally {
-        setIsLoading(false);
-        clearTimeout(timeoutId);
-      }
-
+      
       if (!authError && data.user) {
         console.log('Auth sign-in successful, fetching profile for:', data.user.id);
         const { data: profile, error: profileError } = await supabase
@@ -224,14 +220,17 @@ export const PrincipalLogin = () => {
         } else {
           console.warn('Auth sign-in successful but profile is missing');
         }
-      
-      setError('Invalid principal credentials or school not registered');
+      } else {
+        setError('Invalid principal credentials or school not registered');
+      }
     } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
-    } finally {
-      clearTimeout(timeoutId);
-      setIsLoading(false);
-    }
+        console.error('Login error:', err);
+        setError(err.message || 'An unexpected error occurred during login');
+      } finally {
+        setIsLoading(false);
+        clearTimeout(timeoutId);
+      }
+
   };
 
   const handleForceChangeSuccess = () => {

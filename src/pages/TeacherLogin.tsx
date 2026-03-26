@@ -52,6 +52,9 @@ export const TeacherLogin = () => {
     setIsLoading(true);
     setError('');
 
+    const dummyEmail = `${phone.replace('+', '')}@boraschool.ke`;
+    const emailError = null;
+
     // Safety timeout to prevent infinite loading state
     const timeoutId = setTimeout(() => {
       if (isLoading) {
