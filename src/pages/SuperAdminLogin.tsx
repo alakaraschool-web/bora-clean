@@ -406,9 +406,10 @@ export const SuperAdminLogin = () => {
             </div>
 
             <Button
-              type="submit"
+              type="button"
               className="w-full bg-kenya-green hover:bg-green-600 text-black font-bold uppercase tracking-[0.2em] text-xs py-4 rounded-lg shadow-[0_0_20px_rgba(0,255,0,0.1)]"
               disabled={isLoading}
+              onClick={isRegistering ? handleRegister : handleLogin}
             >
               {isLoading ? 'Decrypting...' : 'Initialize Session'}
             </Button>

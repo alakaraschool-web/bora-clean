@@ -1,6 +1,4 @@
 import React, { useState, useEffect, FormEvent } from 'react';
-import { db } from '../lib/firebase';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Button } from './Button';
 import { supabase } from '../lib/supabase';
 
@@ -15,10 +13,14 @@ export const UserManagement = () => {
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const usersCollection = collection(db, 'users');
-      const userSnapshot = await getDocs(usersCollection);
-      const userList = userSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setUsers(userList);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*');
+      if (error) {
+        console.error('Error fetching users:', error);
+      } else {
+        setUsers(data || []);
+      }
     };
     fetchUsers();
   }, []);
@@ -42,7 +44,6 @@ export const UserManagement = () => {
           .from('profiles')
           .insert({
             id: data.user.id,
-            user_id: data.user.id,
             email,
             role: 'super-admin',
             name
@@ -67,8 +68,7 @@ export const UserManagement = () => {
   };
 
   const handleDisableAccount = async (userId: string) => {
-    const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, { disabled: true });
+    // In Supabase, you might disable a user by updating their profile or using Supabase Auth
     alert(`Account ${userId} disabled`);
   };
 

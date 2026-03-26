@@ -56,12 +56,11 @@ export const SuperAdminRegistration = () => {
       if (signUpError) throw signUpError;
 
       if (data.user) {
-        // 2. Insert profile
+        // 2. Update profile (trigger creates it as student)
         const { error: profileError } = await supabase
           .from('profiles')
-          .insert({
+          .upsert({
             id: data.user.id,
-            user_id: data.user.id,
             email: formData.email,
             role: 'super-admin',
             name: formData.name

@@ -53,18 +53,7 @@ import { ImageAI } from '../components/ImageAI';
 interface School {
   id: string;
   name: string;
-  location: string;
-  county: string;
-  subCounty: string;
-  type: string;
-  students: string;
-  status: 'Active' | 'Pending' | 'Suspended';
-  date: string;
-  principalPhone: string;
-  principalPass: string;
-  teacherEmail: string;
-  teacherPass: string;
-  subscriptionExpiresAt?: string;
+  created_at: string;
 }
 
 interface ExamMaterial {
@@ -94,7 +83,19 @@ export const SuperAdminDashboard = () => {
   const [totalStudents, setTotalStudents] = useState(0);
   const [activeExamsCount, setActiveExamsCount] = useState(0);
   const [users, setUsers] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pending' | 'Suspended'>('All');
+  const [showStoryModal, setShowStoryModal] = useState(false);
+  const [generatedCreds, setGeneratedCreds] = useState<{ principal: string; teacher: string; pass: string } | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadForm, setUploadForm] = useState({
+    title: '',
+    subject: '',
+    category: 'Exam',
+    description: '',
+    file: null as File | null
+  });
 
   // ... (rest of the component)
 
@@ -193,20 +194,9 @@ export const SuperAdminDashboard = () => {
         </main>
       </div>
     </div>
+
+
   );
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadForm, setUploadForm] = useState({
-    title: '',
-    subject: '',
-    category: 'Exam',
-    description: '',
-    file: null as File | null
-  });
-  const [showStoryModal, setShowStoryModal] = useState(false);
-  const [generatedCreds, setGeneratedCreds] = useState<{ principal: string; teacher: string; pass: string } | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pending' | 'Suspended'>('All');
 
   const [examMaterials, setExamMaterials] = useState<ExamMaterial[]>(() => {
     const saved = localStorage.getItem('alakara_exam_materials');

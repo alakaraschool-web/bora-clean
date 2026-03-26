@@ -49,7 +49,6 @@ export default function App() {
           <Route path="/student-login" element={<StudentLogin />} />
           <Route path="/student/dashboard" element={<StudentDashboard />} />
           <Route path="/principal-login" element={<PrincipalLogin />} />
-          <Route path="/register-school" element={<SchoolRegistration />} />
           <Route path="/resources/:category" element={<ResourcesPage />} />
           <Route path="/principal/dashboard" element={<PrincipalDashboard />} />
           <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />

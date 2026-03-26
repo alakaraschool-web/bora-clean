@@ -19,11 +19,6 @@ export const CTA = () => {
               Join 500+ Kenyan schools that have already automated their exams with Alakara. Transform your institution today.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/register-school">
-                <Button variant="primary" size="lg" className="w-full sm:w-auto">
-                  Register Your School Now
-                </Button>
-              </Link>
               <Button variant="ghost" size="lg" className="w-full sm:w-auto text-white hover:bg-white/10">
                 Talk to an Expert
               </Button>

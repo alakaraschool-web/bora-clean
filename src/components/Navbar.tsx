@@ -42,9 +42,6 @@ export const Navbar = () => {
               <Link to="/login">
                 <Button variant="ghost" size="sm">Login</Button>
               </Link>
-              <Link to="/register-school">
-                <Button size="sm">Register School</Button>
-              </Link>
             </div>
           </div>
 
@@ -81,9 +78,6 @@ export const Navbar = () => {
           <div className="flex flex-col gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
             <Link to="/login" onClick={() => setIsOpen(false)}>
               <Button variant="outline" className="w-full">Login</Button>
-            </Link>
-            <Link to="/register-school" onClick={() => setIsOpen(false)}>
-              <Button className="w-full">Register School</Button>
             </Link>
           </div>
         </motion.div>
