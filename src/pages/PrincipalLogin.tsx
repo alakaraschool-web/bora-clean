@@ -173,6 +173,12 @@ export const PrincipalLogin = () => {
             throw authError || emailError;
           }
         }
+      } catch (err: any) {
+        console.error('Login error:', err);
+        setError(err.message || 'An unexpected error occurred during login');
+      } finally {
+        setIsLoading(false);
+        clearTimeout(timeoutId);
       }
 
       if (!authError && data.user) {
@@ -218,8 +224,7 @@ export const PrincipalLogin = () => {
         } else {
           console.warn('Auth sign-in successful but profile is missing');
         }
-      }
-
+      
       setError('Invalid principal credentials or school not registered');
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');

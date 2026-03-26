@@ -156,7 +156,6 @@ export const TeacherLogin = () => {
             throw authError || emailError;
           }
         }
-      }
 
       if (!authError && data.user) {
         console.log('Auth sign-in successful, fetching profile for:', data.user.id);
@@ -191,7 +190,8 @@ export const TeacherLogin = () => {
 
       setError('Invalid teacher credentials');
     } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
+      console.error('Login error:', err);
+      setError(err.message || 'An unexpected error occurred during login');
     } finally {
       clearTimeout(timeoutId);
       setIsLoading(false);

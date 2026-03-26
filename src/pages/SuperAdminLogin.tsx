@@ -436,16 +436,9 @@ export const SuperAdminLogin = () => {
             >
               {isRegistering ? 'Back to Login' : 'Register New Super Admin'}
             </button>
-          </form>
-                  type="checkbox"
-                  className="h-3 w-3 bg-black border-white/10 text-kenya-green focus:ring-kenya-green rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-[10px] text-gray-500 uppercase tracking-wider">
-                  Persistent Session
-                </label>
-              </div>
-
-              <div className="text-[10px]">
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
                 <button 
                   type="button"
                   onClick={() => setShowResetModal(true)}
