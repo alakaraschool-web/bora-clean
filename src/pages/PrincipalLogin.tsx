@@ -5,7 +5,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { PasswordResetModal } from '../components/PasswordResetModal';
 import { ForcePasswordChangeModal } from '../components/ForcePasswordChangeModal';
-import { supabase } from '../lib/supabase';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 export const PrincipalLogin = () => {
   const [phone, setPhone] = useState('');
@@ -18,219 +19,51 @@ export const PrincipalLogin = () => {
   const [pendingSchool, setPendingSchool] = useState<any>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Check if already logged in
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        console.log('Session found, checking profile for user:', session.user.id);
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
-          .maybeSingle();
-        
-        if (profileError) {
-          console.error('Error fetching profile in checkSession:', profileError);
-        }
-
-        if (profile && profile.role === 'principal') {
-          console.log('Principal profile found, fetching school data');
-          // Fetch school data
-          const { data: school, error: schoolError } = await supabase
-            .from('schools')
-            .select('*')
-            .eq('id', profile.school_id)
-            .maybeSingle();
-          
-          if (schoolError) {
-            console.error('Error fetching school data:', schoolError);
-          }
-
-          if (school) {
-            console.log('School data found, navigating to dashboard');
-            localStorage.setItem('alakara_current_school', JSON.stringify(school));
-            navigate('/principal/dashboard');
-          } else {
-            console.warn('Principal profile found but school data is missing');
-          }
-        } else if (profile) {
-          console.log('Profile found but role is not principal:', profile.role);
-        } else {
-          console.log('No profile found for session user');
-        }
-      }
-    };
-    checkSession();
-  }, [navigate]);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    const dummyEmail = `${phone.replace('+', '')}@boraschool.ke`;
-    const emailError = null;
-
-    // Safety timeout to prevent infinite loading state
-    const timeoutId = setTimeout(() => {
-      if (isLoading) {
-        console.warn('Login attempt timed out');
-        setIsLoading(false);
-        setError('Login attempt timed out. Please try again.');
-      }
-    }, 15000);
-
     try {
-      const sanitizedInput = phone.trim();
-      const cleanPhone = sanitizedInput.replace(/\s+/g, '');
+      const auth = getAuth();
+      const db = getFirestore();
       
-      // Try Supabase Auth directly with phone
-      const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`;
-      let { data, error: authError } = await supabase.auth.signInWithPassword({
-        phone: formattedPhone,
-        password
-      });
-
-      if (authError) {
-        // If Auth fails, check if the user exists in profiles
-        // but don't log them in without a session.
-        const { data: profileExists } = await supabase
-          .from('profiles')
-          .select('id, password, role')
-          .eq('phone', cleanPhone)
-          .eq('role', 'principal')
-          .maybeSingle();
-
-          if (profileExists && profileExists.password === password) {
-            // User exists in profiles but Auth failed (likely password mismatch after reset)
-            // Try to sync Auth password via server-side API
-            try {
-              const syncResponse = await fetch('/api/auth/reset-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ profileId: profileExists.id, newPassword: password })
-              });
-
-              const text = await syncResponse.text();
-              let syncData;
-              try {
-                syncData = text ? JSON.parse(text) : {};
-              } catch (e) {
-                console.error('Invalid JSON response:', text);
-                throw new Error('Server returned invalid JSON');
-              }
-
-              if (!syncResponse.ok) {
-                throw new Error(syncData.error || 'Request failed');
-              }
-                // Sync successful, try to sign in again
-                const { data: retryAuth, error: retryError } = await supabase.auth.signInWithPassword({
-                  email: dummyEmail,
-                  password: password
-                });
-                
-                if (!retryError && retryAuth.user) {
-                  data = { user: retryAuth.user, session: retryAuth.session };
-                  authError = null;
-                }
-            } catch (syncErr) {
-              console.error('Auth sync failed:', syncErr);
-            }
-
-            if (authError) {
-              // If sync failed or still can't login, try signUp as fallback (if not already registered)
-              const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                email: dummyEmail,
-                password: password,
-                options: {
-                  data: {
-                    role: 'principal'
-                  }
-                }
-              });
-
-              if (!signUpError && signUpData.user) {
-                data = { user: signUpData.user, session: signUpData.session };
-                authError = null;
-                
-                // Update the profile with the new user_id if it's different
-                console.log('Updating profile with new user_id:', signUpData.user.id);
-                const { error: updateError } = await supabase
-                  .from('profiles')
-                  .update({ user_id: signUpData.user.id })
-                  .eq('phone', cleanPhone)
-                  .eq('role', 'principal');
-                
-                if (updateError) {
-                  console.error('Error updating profile with user_id:', updateError);
-                }
-              } else if (signUpError?.message?.includes('already registered')) {
-                // User exists in Auth but password was wrong (since signIn failed)
-                throw new Error('Invalid principal credentials. If you recently reset your password, please wait a moment and try again.');
-              } else {
-                throw authError || emailError;
-              }
-            }
-          } else {
-            throw authError || emailError;
-          }
-        }
+      // Find user by phone
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('phone', '==', phone), where('role', '==', 'principal'));
+      const querySnapshot = await getDocs(q);
       
-      if (!authError && data.user) {
-        console.log('Auth sign-in successful, fetching profile for:', data.user.id);
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .or(`id.eq.${data.user.id},user_id.eq.${data.user.id}`)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error('Error fetching profile after auth sign-in:', profileError);
-        }
-
-        if (profile) {
-          console.log('Profile found, fetching school data');
-          const { data: school, error: schoolError } = await supabase
-            .from('schools')
-            .select('*')
-            .eq('id', profile.school_id)
-            .maybeSingle();
-
-          if (schoolError) {
-            console.error('Error fetching school data after auth sign-in:', schoolError);
-          }
-
-          if (school) {
-            console.log('School data found');
-            if (profile.must_change_password) {
-              console.log('Password change required');
-              setPendingProfileId(profile.id);
-              setPendingSchool(school);
-              setShowForceChange(true);
-              return;
-            }
-            localStorage.setItem('alakara_current_school', JSON.stringify(school));
-            console.log('Navigating to principal dashboard');
-            navigate('/principal/dashboard');
-            return;
-          } else {
-            console.warn('Profile found but school data is missing');
-          }
-        } else {
-          console.warn('Auth sign-in successful but profile is missing');
-        }
+      if (querySnapshot.empty) {
+        throw new Error('Principal not found');
+      }
+      
+      const userDoc = querySnapshot.docs[0];
+      const userData = userDoc.data();
+      
+      // Sign in with email (dummy email based on phone)
+      const userCredential = await signInWithEmailAndPassword(auth, userData.email, password);
+      
+      // Fetch school data
+      const schoolDoc = await getDoc(doc(db, 'schools', userData.school_id));
+      if (!schoolDoc.exists()) {
+        throw new Error('School data missing');
+      }
+      
+      const school = schoolDoc.data();
+      localStorage.setItem('alakara_current_school', JSON.stringify(school));
+      
+      if (userData.must_change_password) {
+        setPendingProfileId(userDoc.id);
+        setPendingSchool(school);
+        setShowForceChange(true);
       } else {
-        setError('Invalid principal credentials or school not registered');
+        navigate('/principal/dashboard');
       }
     } catch (err: any) {
-        console.error('Login error:', err);
-        setError(err.message || 'An unexpected error occurred during login');
-      } finally {
-        setIsLoading(false);
-        clearTimeout(timeoutId);
-      }
-
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleForceChangeSuccess = () => {

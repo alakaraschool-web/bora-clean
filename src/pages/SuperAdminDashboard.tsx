@@ -49,11 +49,27 @@ import { Button } from '../components/Button';
 import { NotificationBell, addNotification } from '../components/NotificationBell';
 import { UserManagement } from '../components/UserManagement';
 import { ImageAI } from '../components/ImageAI';
+import { auth, db } from '../lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { firebaseService } from '../services/firebaseService';
 
 interface School {
   id: string;
   name: string;
   created_at: string;
+  status?: string;
+  location?: string;
+  county?: string;
+  subCounty?: string;
+  type?: string;
+  students?: string;
+  date?: string;
+  principalPhone?: string;
+  principalPass?: string;
+  teacherEmail?: string;
+  teacherPass?: string;
+  subscriptionExpiresAt?: string;
 }
 
 interface ExamMaterial {
@@ -70,9 +86,6 @@ interface ExamMaterial {
   visibility: 'Public' | 'Hidden';
   fileUrl?: string;
 }
-
-import { supabase } from '../lib/supabase';
-import { supabaseService } from '../services/supabaseService';
 
 export const SuperAdminDashboard = () => {
   const navigate = useNavigate();
@@ -126,42 +139,27 @@ export const SuperAdminDashboard = () => {
   };
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      console.log('checkSession session:', session, 'error:', error);
-      
-      if (!session) {
-        console.warn('Auth session missing! Navigating to /super-admin');
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
         navigate('/super-admin');
         return;
       }
 
-      // Fetch admin data based on session
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
-        .maybeSingle();
+      // Fetch admin data based on user
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const profile = userDoc.exists() ? userDoc.data() : null;
 
-      if (profile && profile.role === 'super-admin') {
+      if (profile && profile.role === 'super_admin') {
         setAdminProfile(profile);
         localStorage.setItem('alakara_super_admin', JSON.stringify(profile));
-        // fetchAllData(); // Uncomment if fetchAllData is defined
+        fetchAllData();
       } else {
         navigate('/super-admin');
       }
       setIsLoading(false);
-    };
-
-    checkSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        navigate('/super-admin');
-      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, [navigate]);
 
   if (isLoading) {
@@ -483,7 +481,7 @@ export const SuperAdminDashboard = () => {
   ];
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut(auth);
     navigate('/super-admin');
   };
 
@@ -684,22 +682,20 @@ export const SuperAdminDashboard = () => {
   const fetchAllData = async () => {
     try {
       // 1. Fetch Schools and Student Counts
-      const schoolsData = await supabaseService.getAllSchools();
-      const studentCounts = await supabaseService.getStudentCountsBySchool();
-      const totalStudentsCount = await supabaseService.getTotalStudentsCount();
-      const activeExams = await supabaseService.getActiveExamsCount();
+      const schoolsData = await firebaseService.getAllSchools();
+      const studentCounts = await firebaseService.getStudentCountsBySchool();
+      const totalStudentsCount = await firebaseService.getTotalStudentsCount();
+      const activeExams = await firebaseService.getActiveExamsCount();
 
       setTotalStudents(totalStudentsCount);
       setActiveExamsCount(activeExams);
       
       if (schoolsData) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('school_id, phone, email')
-          .eq('role', 'principal');
+        const profiles = await firebaseService.getProfiles();
+        const principalProfiles = profiles.filter(p => p.role === 'principal');
 
         const mappedSchools: School[] = schoolsData.map((s: any) => {
-          const principalProfile = profiles?.find(p => p.school_id === s.id);
+          const principalProfile = principalProfiles?.find(p => p.school_id === s.id);
           return {
             id: s.id,
             name: s.name,
@@ -709,7 +705,7 @@ export const SuperAdminDashboard = () => {
             type: s.type || 'Secondary',
             students: (studentCounts[s.id] || 0).toString(),
             status: s.status || 'Active',
-            date: new Date(s.created_at).toLocaleDateString(),
+            date: s.created_at ? new Date(s.created_at.toDate()).toLocaleDateString() : 'N/A',
             principalPhone: principalProfile?.phone || 'N/A',
             principalPass: '********',
             teacherEmail: principalProfile?.phone || 'N/A',
@@ -721,16 +717,16 @@ export const SuperAdminDashboard = () => {
       }
 
       // 2. Fetch Exam Materials
-      const materialsData = await supabaseService.getExamMaterials();
+      const materialsData = await firebaseService.getExamMaterials();
       if (materialsData) {
         setExamMaterials(materialsData.map((m: any) => ({
           id: m.id,
           title: m.title,
           subject: m.subject,
           description: m.description,
-          schoolName: m.schools?.name || 'System',
-          teacherName: m.profiles?.name || 'Super Admin',
-          uploadDate: new Date(m.created_at).toLocaleDateString(),
+          schoolName: m.schoolName || 'System',
+          teacherName: m.teacherName || 'Super Admin',
+          uploadDate: m.created_at ? new Date(m.created_at.toDate()).toLocaleDateString() : 'N/A',
           status: m.status as any,
           fileType: m.file_type as any || 'PDF',
           visibility: m.visibility as any,
@@ -739,7 +735,7 @@ export const SuperAdminDashboard = () => {
       }
 
       // 3. Fetch Success Stories
-      const storiesData = await supabaseService.getSuccessStories();
+      const storiesData = await firebaseService.getSuccessStories();
       if (storiesData) {
         setSuccessStories(storiesData.map((s: any) => ({
           id: s.id,
@@ -751,32 +747,27 @@ export const SuperAdminDashboard = () => {
       }
 
       // 4. Fetch All Users (Visibility for Super Admin)
-      const { data: allProfiles } = await supabase
-        .from('profiles')
-        .select('*, schools(name)');
-      
-      const { data: allStudents } = await supabase
-        .from('students')
-        .select('*, schools(name)');
+      const allProfiles = await firebaseService.getProfiles();
+      const allStudents = await firebaseService.getStudents();
       
       const combinedUsers = [
-        ...(allProfiles || []).map(p => ({ 
+        ...allProfiles.map(p => ({ 
           id: p.id, 
           name: p.name, 
           phone: p.phone, 
           role: p.role, 
           type: 'Staff', 
-          schoolName: p.schools?.name || 'N/A',
-          createdAt: p.created_at 
+          schoolName: p.schoolName || 'N/A',
+          createdAt: p.created_at ? p.created_at.toDate() : null
         })),
-        ...(allStudents || []).map(s => ({ 
+        ...allStudents.map(s => ({ 
           id: s.id, 
           name: s.name, 
           phone: 'N/A', 
           role: 'Student', 
           type: 'Student', 
-          schoolName: s.schools?.name || 'N/A',
-          createdAt: s.created_at 
+          schoolName: s.schoolName || 'N/A',
+          createdAt: s.created_at ? s.created_at.toDate() : null
         }))
       ];
       setUsers(combinedUsers);
