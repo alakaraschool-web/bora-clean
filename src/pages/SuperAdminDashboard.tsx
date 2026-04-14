@@ -153,7 +153,7 @@ export const SuperAdminDashboard = () => {
       if (profile && profile.role === 'super_admin') {
         setAdminProfile(profile);
         localStorage.setItem('alakara_super_admin', JSON.stringify(profile));
-        fetchAllData();
+        await fetchAllData();
       } else {
         navigate('/super-admin');
       }

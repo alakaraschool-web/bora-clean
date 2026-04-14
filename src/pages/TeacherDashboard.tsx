@@ -239,6 +239,7 @@ export const TeacherDashboard = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!session) {
         navigate('/teacher-login');
+        setIsLoading(false);
         return;
       }
 

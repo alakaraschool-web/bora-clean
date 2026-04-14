@@ -285,6 +285,7 @@ export const PrincipalDashboard = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!session) {
         navigate('/principal-login');
+        setIsAuthLoading(false);
         return;
       }
 
