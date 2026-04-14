@@ -1,41 +1,33 @@
-import { getAuth, createUserWithEmailAndPassword, updatePassword } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 
 export const authService = {
   async createUser(email, password, role, name, phone, school_id, student_id) {
-    const auth = getAuth();
-    const db = getFirestore();
-    
-    // 1. Create Auth Account
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-
-    // 2. Create Profile Record
-    await setDoc(doc(db, 'users', user.uid), {
-      uid: user.uid,
-      name,
+    const { data, error } = await supabase.auth.signUp({
       email,
-      phone,
-      role,
-      school_id,
-      student_id,
-      must_change_password: true
+      password,
+      options: {
+        data: {
+          full_name: name,
+        }
+      }
     });
 
-    return { success: true, user };
+    if (error) throw error;
+    
+    // Profile is created by trigger
+    return { success: true, user: data.user };
   },
 
   async studentLoginVerify(admissionNumber, namePart) {
-    const db = getFirestore();
-    const studentsRef = collection(db, 'students');
-    const q = query(studentsRef, where('admission_number', '==', admissionNumber));
-    const querySnapshot = await getDocs(q);
+    const { data: student, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('admission_number', admissionNumber)
+      .single();
     
-    if (querySnapshot.empty) {
+    if (error || !student) {
       throw new Error('Student not found with this admission number');
     }
-    
-    const student = querySnapshot.docs[0].data();
     
     // Verify name part
     const names = student.name.toLowerCase().split(/\s+/);
@@ -46,9 +38,13 @@ export const authService = {
       throw new Error('The name provided does not match our records for this admission number');
     }
 
-    const userDoc = await getDoc(doc(db, 'users', querySnapshot.docs[0].id));
+    const { data: userData, error: userError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', student.profile_id)
+      .single();
     
-    if (!userDoc.exists()) {
+    if (userError) {
       const dummyEmail = `student_${admissionNumber.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
       return { 
         success: true, 
@@ -58,7 +54,6 @@ export const authService = {
       };
     }
 
-    const userData = userDoc.data();
     return { 
       success: true, 
       email: userData.email, 
@@ -71,17 +66,17 @@ export const authService = {
       success: [] as any[],
       failed: [] as any[]
     };
-    // ... bulk creation logic for Firebase ...
+    for (const student of students) {
+        const { data, error } = await supabase.from('students').insert({ ...student, school_id });
+        if (error) results.failed.push({ student, error });
+        else results.success.push(data);
+    }
     return results;
   },
 
   async resetPassword(profileId, newPassword) {
-    const auth = getAuth();
-    const user = auth.currentUser;
-    if (user) {
-        await updatePassword(user, newPassword);
-        return { success: true, message: 'Auth password updated' };
-    }
-    throw new Error('User not found in Auth system.');
+    const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    return { success: true, message: 'Password updated' };
   }
 };

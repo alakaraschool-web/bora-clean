@@ -49,10 +49,8 @@ import { Button } from '../components/Button';
 import { NotificationBell, addNotification } from '../components/NotificationBell';
 import { UserManagement } from '../components/UserManagement';
 import { ImageAI } from '../components/ImageAI';
-import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { firebaseService } from '../services/firebaseService';
+import { supabase } from '../lib/supabase';
+import { supabaseService } from '../services/supabaseService';
 
 interface School {
   id: string;
@@ -139,15 +137,18 @@ export const SuperAdminDashboard = () => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!session) {
         navigate('/super-admin');
         return;
       }
 
       // Fetch admin data based on user
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const profile = userDoc.exists() ? userDoc.data() : null;
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
 
       if (profile && profile.role === 'super_admin') {
         setAdminProfile(profile);
@@ -159,7 +160,7 @@ export const SuperAdminDashboard = () => {
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   if (isLoading) {
@@ -346,23 +347,13 @@ export const SuperAdminDashboard = () => {
 
       if (schoolData) {
         try {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-          
-          const secondaryClient = createClient(supabaseUrl, supabaseAnonKey, {
-            auth: {
-              persistSession: false,
-              autoRefreshToken: false,
-              detectSessionInUrl: false
-            }
-          });
+          // Supabase client initialization removed.
 
           const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
           const dummyEmail = `user_${sanitizedPhone}@boraschool.ke`;
 
           // 1. Create Principal Auth Account (using Email directly)
-          const { data: pAuthData, error: pAuthError } = await secondaryClient.auth.signUp({
+          const { data: pAuthData, error: pAuthError } = await supabase.auth.signUp({
             email: dummyEmail,
             password: creds.pass
           });
@@ -480,8 +471,10 @@ export const SuperAdminDashboard = () => {
     { label: 'System Health', value: '99.9%', change: 'Stable', icon: ShieldCheck, color: 'text-kenya-green', bg: 'bg-kenya-green/10' },
   ];
 
+  const [searchQuery, setSearchQuery] = useState('');
+  
   const handleLogout = async () => {
-    await signOut(auth);
+    await supabase.auth.signOut();
     navigate('/super-admin');
   };
 
@@ -682,16 +675,16 @@ export const SuperAdminDashboard = () => {
   const fetchAllData = async () => {
     try {
       // 1. Fetch Schools and Student Counts
-      const schoolsData = await firebaseService.getAllSchools();
-      const studentCounts = await firebaseService.getStudentCountsBySchool();
-      const totalStudentsCount = await firebaseService.getTotalStudentsCount();
-      const activeExams = await firebaseService.getActiveExamsCount();
+      const schoolsData = await supabaseService.getAllSchools();
+      const studentCounts = await supabaseService.getStudentCountsBySchool();
+      const totalStudentsCount = await supabaseService.getTotalStudentsCount();
+      const activeExams = await supabaseService.getActiveExamsCount();
 
       setTotalStudents(totalStudentsCount);
       setActiveExamsCount(activeExams);
       
       if (schoolsData) {
-        const profiles = await firebaseService.getProfiles();
+        const profiles = await supabaseService.getProfiles();
         const principalProfiles = profiles.filter(p => p.role === 'principal');
 
         const mappedSchools: School[] = schoolsData.map((s: any) => {
@@ -705,7 +698,8 @@ export const SuperAdminDashboard = () => {
             type: s.type || 'Secondary',
             students: (studentCounts[s.id] || 0).toString(),
             status: s.status || 'Active',
-            date: s.created_at ? new Date(s.created_at.toDate()).toLocaleDateString() : 'N/A',
+            date: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'N/A',
+            created_at: s.created_at || '',
             principalPhone: principalProfile?.phone || 'N/A',
             principalPass: '********',
             teacherEmail: principalProfile?.phone || 'N/A',
@@ -717,7 +711,7 @@ export const SuperAdminDashboard = () => {
       }
 
       // 2. Fetch Exam Materials
-      const materialsData = await firebaseService.getExamMaterials();
+      const materialsData = await supabaseService.getExamMaterials();
       if (materialsData) {
         setExamMaterials(materialsData.map((m: any) => ({
           id: m.id,
@@ -726,7 +720,7 @@ export const SuperAdminDashboard = () => {
           description: m.description,
           schoolName: m.schoolName || 'System',
           teacherName: m.teacherName || 'Super Admin',
-          uploadDate: m.created_at ? new Date(m.created_at.toDate()).toLocaleDateString() : 'N/A',
+          uploadDate: m.created_at ? new Date(m.created_at).toLocaleDateString() : 'N/A',
           status: m.status as any,
           fileType: m.file_type as any || 'PDF',
           visibility: m.visibility as any,
@@ -735,7 +729,7 @@ export const SuperAdminDashboard = () => {
       }
 
       // 3. Fetch Success Stories
-      const storiesData = await firebaseService.getSuccessStories();
+      const storiesData = await supabaseService.getSuccessStories();
       if (storiesData) {
         setSuccessStories(storiesData.map((s: any) => ({
           id: s.id,
@@ -745,10 +739,9 @@ export const SuperAdminDashboard = () => {
           image: s.image_url || `https://picsum.photos/seed/${s.author_name}/100/100`
         })));
       }
-
       // 4. Fetch All Users (Visibility for Super Admin)
-      const allProfiles = await firebaseService.getProfiles();
-      const allStudents = await firebaseService.getStudents();
+      const allProfiles = await supabaseService.getProfiles();
+      const allStudents = await supabaseService.getStudents();
       
       const combinedUsers = [
         ...allProfiles.map(p => ({ 
@@ -758,7 +751,7 @@ export const SuperAdminDashboard = () => {
           role: p.role, 
           type: 'Staff', 
           schoolName: p.schoolName || 'N/A',
-          createdAt: p.created_at ? p.created_at.toDate() : null
+          createdAt: p.created_at ? new Date(p.created_at) : null
         })),
         ...allStudents.map(s => ({ 
           id: s.id, 
@@ -767,12 +760,12 @@ export const SuperAdminDashboard = () => {
           role: 'Student', 
           type: 'Student', 
           schoolName: s.schoolName || 'N/A',
-          createdAt: s.created_at ? s.created_at.toDate() : null
+          createdAt: s.created_at ? new Date(s.created_at) : null
         }))
       ];
       setUsers(combinedUsers);
-    } catch (err) {
-      console.error('Error loading super admin data:', err);
+    } catch (error) {
+      console.error('Error fetching data from Supabase:', error);
     } finally {
       setIsLoading(false);
     }

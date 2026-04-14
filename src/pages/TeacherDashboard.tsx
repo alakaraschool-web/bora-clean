@@ -236,9 +236,7 @@ export const TeacherDashboard = () => {
   }, [currentTeacher?.avatar_url]);
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!session) {
         navigate('/teacher-login');
         return;
@@ -258,14 +256,6 @@ export const TeacherDashboard = () => {
         navigate('/teacher-login');
       }
       setIsLoading(false);
-    };
-
-    checkSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        navigate('/teacher-login');
-      }
     });
 
     return () => subscription.unsubscribe();

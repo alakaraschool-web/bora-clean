@@ -282,9 +282,7 @@ export const PrincipalDashboard = () => {
   }, [hasUnsavedChanges]);
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!session) {
         navigate('/principal-login');
         return;
@@ -335,14 +333,6 @@ export const PrincipalDashboard = () => {
         navigate('/principal-login');
       }
       setIsAuthLoading(false);
-    };
-
-    checkSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        navigate('/principal-login');
-      }
     });
 
     return () => subscription.unsubscribe();
@@ -1379,17 +1369,7 @@ export const PrincipalDashboard = () => {
       setIsLoading(false);
     } else {
       try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        
-        const secondaryClient = createClient(supabaseUrl, supabaseAnonKey, {
-          auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-            detectSessionInUrl: false
-          }
-        });
+        // Supabase client initialization removed.
 
         // Use ADM number to generate a virtual phone number for Auth
         const studentPhone = `+254${newStudent.adm.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
