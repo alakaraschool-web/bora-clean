@@ -5,9 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { PasswordResetModal } from '../components/PasswordResetModal';
 import { ForcePasswordChangeModal } from '../components/ForcePasswordChangeModal';
-import { AdminSignup } from '../components/AdminSignup';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 
 export const SuperAdminLogin = () => {
   const [username, setUsername] = useState('');
@@ -19,25 +17,177 @@ export const SuperAdminLogin = () => {
   const [pendingProfileId, setPendingProfileId] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Check if already logged in as super-admin
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log('Session found, checking profile for super-admin:', session.user.id);
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
+          .maybeSingle();
+        
+        if (profileError) {
+          console.error('Error fetching profile in checkSession:', profileError);
+        }
+
+        if (profile && profile.role === 'super-admin') {
+          console.log('Super-admin profile found, navigating to dashboard');
+          navigate('/super-admin/dashboard');
+        } else if (
+          session.user.email?.toLowerCase() === 'bahatisolomon70@gmail.com' || 
+          session.user.email?.toLowerCase() === 'admin@boraschool.ke'
+        ) {
+          console.log('Auto-creating super-admin profile for:', session.user.email);
+          // Auto-create profile if missing for super-admin
+          await supabase.from('profiles').upsert({
+            id: session.user.id,
+            user_id: session.user.id,
+            name: 'Solomon Isiya',
+            email: session.user.email,
+            role: 'super-admin'
+          });
+          navigate('/super-admin/dashboard');
+        } else if (profile) {
+          console.log('Profile found but role is not super-admin:', profile.role);
+        } else {
+          console.log('No profile found for session user');
+        }
+      }
+    };
+    checkSession();
+  }, [navigate]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    try {
-      const auth = getAuth();
-      const userCredential = await signInWithEmailAndPassword(auth, username, password);
-      const db = getFirestore();
-      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-      
-      if (userDoc.exists() && userDoc.data().role === 'super_admin') {
-        navigate('/super-admin/dashboard');
-      } else {
-        setError('Unauthorized access.');
+    // Safety timeout to prevent infinite loading state
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.warn('Login attempt timed out');
+        setIsLoading(false);
+        setError('Login attempt timed out. Please try again.');
       }
+    }, 15000);
+
+    try {
+      const sanitizedInput = username.trim();
+      const isEmail = sanitizedInput.includes('@');
+      const cleanPhone = sanitizedInput.replace(/\s+/g, '');
+      const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`;
+      const dummyEmail = isEmail ? sanitizedInput.toLowerCase() : `${cleanPhone}@superadmin.boraschool.ke`;
+
+      // 1. Try Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: isEmail ? sanitizedInput : dummyEmail,
+        password: password
+      });
+
+      if (!authError && authData?.user) {
+        console.log('Auth sign-in successful, fetching profile for:', authData.user.id);
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .or(`id.eq.${authData.user.id},user_id.eq.${authData.user.id}`)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Error fetching profile after auth sign-in:', profileError);
+        }
+
+        if (profile && profile.role === 'super-admin') {
+          console.log('Super-admin profile found');
+          if (profile.must_change_password) {
+            console.log('Password change required');
+            setPendingProfileId(profile.id);
+            setShowForceChange(true);
+            return;
+          }
+          console.log('Navigating to super-admin dashboard');
+          navigate('/super-admin/dashboard');
+          return;
+        }
+        
+        console.warn('Unauthorized access attempt or missing profile for role super-admin');
+        await supabase.auth.signOut();
+        throw new Error('Unauthorized access. Only super admins can log in here.');
+      }
+
+      // 2. Fallback: Check profiles table directly
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .or(`email.eq.${sanitizedInput.toLowerCase()},phone.eq.${cleanPhone}`)
+        .eq('password', password)
+        .eq('role', 'super-admin')
+        .maybeSingle();
+
+      if (profile) {
+        // User exists in profiles but Auth failed, try to sign them up
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: profile.email || dummyEmail,
+          password: password,
+          options: { data: { role: 'super-admin', phone: profile.phone } }
+        });
+
+        if (!signUpError && signUpData.user) {
+          await supabase.from('profiles').update({ user_id: signUpData.user.id }).eq('id', profile.id);
+          
+          if (profile.must_change_password) {
+            setPendingProfileId(profile.id);
+            setShowForceChange(true);
+            return;
+          }
+          navigate('/super-admin/dashboard');
+          return;
+        }
+      }
+
+      // 3. Hardcoded Bootstrap Login (for initial setup)
+      if ((sanitizedInput.toLowerCase() === 'admin' || sanitizedInput.toLowerCase() === 'bahatisolomon70@gmail.com') && password === 'admin123') {
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', sanitizedInput.toLowerCase())
+          .maybeSingle();
+
+        if (existingProfile) {
+          // Try to sign up if no Auth
+          const { data: signUpData } = await supabase.auth.signUp({
+            email: sanitizedInput.toLowerCase(),
+            password: password,
+            options: { data: { role: 'super-admin' } }
+          });
+          if (signUpData.user) {
+            await supabase.from('profiles').update({ user_id: signUpData.user.id }).eq('id', existingProfile.id);
+          }
+          navigate('/super-admin/dashboard');
+        } else {
+          // Create profile
+          const profileId = crypto.randomUUID();
+          await supabase.from('profiles').insert({
+            id: profileId,
+            email: sanitizedInput.toLowerCase(),
+            role: 'super-admin',
+            name: 'System Admin',
+            password: password,
+            must_change_password: true
+          });
+          setPendingProfileId(profileId);
+          setShowForceChange(true);
+        }
+        return;
+      }
+
+      setError('Invalid credentials');
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'An unexpected error occurred');
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };
@@ -48,6 +198,7 @@ export const SuperAdminLogin = () => {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden font-mono">
+      {/* Technical Grid Background */}
       <div className="absolute inset-0 opacity-[0.05] pointer-events-none" 
            style={{ 
              backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', 
@@ -71,9 +222,13 @@ export const SuperAdminLogin = () => {
           animate={{ opacity: 1, scale: 1 }}
           className="bg-[#151619] py-10 px-6 shadow-2xl sm:rounded-2xl sm:px-10 border border-white/10 relative overflow-hidden"
         >
-          <AdminSignup />
+          {/* Decorative corner accents */}
+          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-kenya-green/30" />
+          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-kenya-green/30" />
+          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-kenya-green/30" />
+          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-kenya-green/30" />
 
-          <div className="mb-10 mt-10">
+          <div className="mb-10">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-2 h-2 rounded-full bg-kenya-red animate-pulse" />
               <h2 className="text-sm font-bold text-white uppercase tracking-widest">System Authentication</h2>
@@ -89,7 +244,7 @@ export const SuperAdminLogin = () => {
                 className="bg-kenya-red/10 border border-kenya-red/30 text-kenya-red px-4 py-3 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-3"
               >
                 <ShieldAlert className="w-4 h-4" />
-                {error}
+                Error: {error}
               </motion.div>
             )}
 
@@ -135,12 +290,20 @@ export const SuperAdminLogin = () => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Authenticate'}
-            </Button>
-            
             <div className="flex items-center justify-between">
               <div className="flex items-center">
+                <input
+                  id="remember-me"
+                  name="remember-me"
+                  type="checkbox"
+                  className="h-3 w-3 bg-black border-white/10 text-kenya-green focus:ring-kenya-green rounded"
+                />
+                <label htmlFor="remember-me" className="ml-2 block text-[10px] text-gray-500 uppercase tracking-wider">
+                  Persistent Session
+                </label>
+              </div>
+
+              <div className="text-[10px]">
                 <button 
                   type="button"
                   onClick={() => setShowResetModal(true)}
@@ -150,6 +313,14 @@ export const SuperAdminLogin = () => {
                 </button>
               </div>
             </div>
+
+            <Button
+              type="submit"
+              className="w-full bg-kenya-green hover:bg-green-600 text-black font-bold uppercase tracking-[0.2em] text-xs py-4 rounded-lg shadow-[0_0_20px_rgba(0,255,0,0.1)]"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Decrypting...' : 'Initialize Session'}
+            </Button>
           </form>
 
           <div className="mt-10 pt-6 border-t border-white/5">

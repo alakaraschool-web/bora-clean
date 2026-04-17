@@ -32,21 +32,10 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
 
     setIsLoading(true);
     try {
-      console.log('Attempting to update user password...');
-      
-      // Explicitly check session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      console.log('Session check before updateUser:', { session, sessionError });
-      
-      if (!session) {
-        throw new Error('No active session found. Please log in again.');
-      }
-
       // 1. Update Supabase Auth password
-      const { data, error: authError } = await supabase.auth.updateUser({
+      const { error: authError } = await supabase.auth.updateUser({
         password: newPassword
       });
-      console.log('updateUser result:', { data, authError });
 
       if (authError) throw authError;
 

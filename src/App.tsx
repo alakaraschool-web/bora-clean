@@ -7,7 +7,6 @@ import { ExamsResources } from './components/ExamsResources';
 import { Testimonials } from './components/Testimonials';
 import { CTA } from './components/CTA';
 import { Footer } from './components/Footer';
-import { SuperAdminSignup } from './pages/SuperAdminSignup';
 import { SuperAdminLogin } from './pages/SuperAdminLogin';
 import { TeacherLogin } from './pages/TeacherLogin';
 import { StudentLogin } from './pages/StudentLogin';
@@ -17,6 +16,7 @@ import { PrincipalLogin } from './pages/PrincipalLogin';
 import { PrincipalDashboard } from './pages/PrincipalDashboard';
 import { StudentDashboard } from './pages/StudentDashboard';
 import { TeacherDashboard } from './pages/TeacherDashboard';
+import { SchoolRegistration } from './pages/SchoolRegistration';
 import { ResourcesPage } from './pages/ResourcesPage';
 
 const LandingPage = () => (
@@ -42,12 +42,12 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginChoice />} />
           <Route path="/super-admin" element={<SuperAdminLogin />} />
-          <Route path="/super-admin/signup" element={<SuperAdminSignup />} />
           <Route path="/teacher-login" element={<TeacherLogin />} />
           <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
           <Route path="/student-login" element={<StudentLogin />} />
           <Route path="/student/dashboard" element={<StudentDashboard />} />
           <Route path="/principal-login" element={<PrincipalLogin />} />
+          <Route path="/register-school" element={<SchoolRegistration />} />
           <Route path="/resources/:category" element={<ResourcesPage />} />
           <Route path="/principal/dashboard" element={<PrincipalDashboard />} />
           <Route path="/super-admin/dashboard" element={<SuperAdminDashboard />} />

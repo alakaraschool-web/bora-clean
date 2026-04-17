@@ -140,6 +140,7 @@ export const TeacherDashboard = () => {
   const [newMaterial, setNewMaterial] = useState({
     title: '',
     subject: 'Mathematics',
+    category: 'Exam',
     fileType: 'PDF' as 'PDF' | 'DOCX' | 'ZIP',
     file: null as File | null
   });
@@ -236,10 +237,11 @@ export const TeacherDashboard = () => {
   }, [currentTeacher?.avatar_url]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
       if (!session) {
         navigate('/teacher-login');
-        setIsLoading(false);
         return;
       }
 
@@ -257,6 +259,14 @@ export const TeacherDashboard = () => {
         navigate('/teacher-login');
       }
       setIsLoading(false);
+    };
+
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        navigate('/teacher-login');
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -467,6 +477,7 @@ export const TeacherDashboard = () => {
         id: Math.random().toString(36).substr(2, 9),
         title: newMaterial.title,
         subject: newMaterial.subject,
+        category: newMaterial.category,
         fileType: newMaterial.fileType,
         fileUrl: publicUrl,
         teacherId: currentTeacher.id,
@@ -503,7 +514,7 @@ export const TeacherDashboard = () => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.from('students').upsert({
+      const { data, error } = await supabase.from('students').insert({
         name: newStudent.name,
         admission_number: newStudent.adm,
         class: managedClass.name,
@@ -517,7 +528,7 @@ export const TeacherDashboard = () => {
         house: newStudent.house,
         school_id: currentTeacher.school_id,
         status: 'Active'
-      }, { onConflict: 'admission_number' }).select().single();
+      }).select().single();
 
       if (error) throw error;
 
@@ -1945,6 +1956,19 @@ export const TeacherDashboard = () => {
                     {learningAreas.map(la => (
                       <option key={la} value={la}>{la}</option>
                     ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-kenya-black ml-1">Category</label>
+                  <select 
+                    value={newMaterial.category}
+                    onChange={(e) => setNewMaterial({...newMaterial, category: e.target.value})}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
+                  >
+                    <option value="KJSEA Corner">KJSEA Corner</option>
+                    <option value="KPSEA Corner">KPSEA Corner</option>
+                    <option value="KCSE Resources">KCSE Resources</option>
+                    <option value="Schemes of Work">Schemes of Work</option>
                   </select>
                 </div>
                 <div className="space-y-2">

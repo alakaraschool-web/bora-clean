@@ -282,10 +282,11 @@ export const PrincipalDashboard = () => {
   }, [hasUnsavedChanges]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
       if (!session) {
         navigate('/principal-login');
-        setIsAuthLoading(false);
         return;
       }
 
@@ -334,6 +335,14 @@ export const PrincipalDashboard = () => {
         navigate('/principal-login');
       }
       setIsAuthLoading(false);
+    };
+
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        navigate('/principal-login');
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -457,51 +466,32 @@ export const PrincipalDashboard = () => {
         }
 
         // Fetch School Settings
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        const response = await fetch(`${supabaseUrl}/rest/v1/school_settings?select=*&school_id=eq.${school.id}`, {
-          headers: {
-            'apikey': supabaseAnonKey,
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-            'Accept': 'application/json',
-          },
-        });
-        const settingsData = await response.json();
-        const settings = Array.isArray(settingsData) ? settingsData[0] : settingsData;
-        
-        if (settings) {
+        const { data: settingsData } = await supabase
+          .from('school_settings')
+          .select('*')
+          .eq('school_id', school.id)
+          .single();
+        if (settingsData) {
           setSchoolSettings({
-            name: settings.name || school.name,
-            motto: settings.motto || '',
-            address: settings.address || '',
-            website: settings.website || '',
-            phone: settings.phone || '',
-            email: settings.email || '',
-            logo: settings.logo_url || null,
-            letterheadTemplate: settings.letterhead_template || 'standard'
+            name: settingsData.name || school.name,
+            motto: settingsData.motto || '',
+            address: settingsData.address || '',
+            website: settingsData.website || '',
+            phone: settingsData.phone || '',
+            email: settingsData.email || '',
+            logo: settingsData.logo_url || null,
+            letterheadTemplate: settingsData.letterhead_template || 'standard'
           });
-          if (settings.grading_system) {
-            setGradingSystem(settings.grading_system as any[]);
+          if (settingsData.grading_system) {
+            setGradingSystem(settingsData.grading_system as any[]);
           }
         }
 
         // Fetch Messages
-        const principalId = principalProfile?.id;
-        const schoolId = school.id;
-        
-        let filter = [];
-        if (principalId) {
-            filter.push(`sender_id.eq.${principalId}`);
-            filter.push(`receiver_id.eq.${principalId}`);
-        }
-        filter.push(`and(type.eq.broadcast,target_role.eq.principal,school_id.eq.${schoolId})`);
-        
-        const filterString = filter.join(',');
-
         const { data: messagesData } = await supabase
           .from('messages')
           .select('*, sender:profiles!sender_id(name, role)')
-          .or(filterString)
+          .or(`sender_id.eq.${principalProfile?.id},receiver_id.eq.${principalProfile?.id},and(type.eq.broadcast,target_role.eq.principal,school_id.eq.${school.id})`)
           .order('created_at', { ascending: true });
         if (messagesData) setMessages(messagesData);
 
@@ -661,19 +651,13 @@ export const PrincipalDashboard = () => {
               school_id: school.id
             })
           });
-
-          const text = await res.text();
-          let result;
-          try {
-            result = text ? JSON.parse(text) : {};
-          } catch (e) {
-            console.error('Invalid JSON response:', text);
-            throw new Error('Server returned invalid JSON');
-          }
-
+          
           if (!res.ok) {
-            throw new Error(result.error || 'Request failed');
+            const errorText = await res.text();
+            throw new Error(`Server error: ${errorText}`);
           }
+          
+          const result = await res.json();
           
           if (result.failed && result.failed.length > 0) {
             console.error('Some students failed to sync:', result.failed);
@@ -1229,7 +1213,7 @@ export const PrincipalDashboard = () => {
       const password = Math.random().toString(36).slice(-8);
       
       try {
-        const dummyEmail = `user_${sanitizedPhone}@boraschool.ke`;
+        const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
         const response = await fetch('/api/auth/create-user', {
@@ -1245,18 +1229,8 @@ export const PrincipalDashboard = () => {
           })
         });
 
-        const text = await response.text();
-        let authResult;
-        try {
-          authResult = text ? JSON.parse(text) : {};
-        } catch (e) {
-          console.error('Invalid JSON response:', text);
-          throw new Error('Server returned invalid JSON');
-        }
-
-        if (!response.ok) {
-          throw new Error(authResult.error || 'Failed to create staff account');
-        }
+        const authResult = await response.json();
+        if (!response.ok) throw new Error(authResult.error || 'Failed to create staff account');
 
         const authUserId = authResult.user.id;
 
@@ -1370,11 +1344,21 @@ export const PrincipalDashboard = () => {
       setIsLoading(false);
     } else {
       try {
-        // Supabase client initialization removed.
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        const secondaryClient = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+          }
+        });
 
         // Use ADM number to generate a virtual phone number for Auth
         const studentPhone = `+254${newStudent.adm.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
-        const dummyEmail = `student_${studentPhone.replace('+', '')}@student.boraschool.ke`;
+        const dummyEmail = `${studentPhone.replace('+', '')}@student.boraschool.ke`;
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account and Profile via Server API
@@ -1391,18 +1375,8 @@ export const PrincipalDashboard = () => {
           })
         });
 
-        const text = await response.text();
-        let authResult;
-        try {
-          authResult = text ? JSON.parse(text) : {};
-        } catch (e) {
-          console.error('Invalid JSON response:', text);
-          throw new Error('Server returned invalid JSON');
-        }
-
-        if (!response.ok) {
-          throw new Error(authResult.error || 'Failed to create student account');
-        }
+        const authResult = await response.json();
+        if (!response.ok) throw new Error(authResult.error || 'Failed to create student account');
 
         const authUserId = authResult.user.id;
 
@@ -1656,20 +1630,12 @@ export const PrincipalDashboard = () => {
               })
             });
 
-            const text = await response.text();
-            let parsedResult;
-            try {
-              parsedResult = text ? JSON.parse(text) : {};
-            } catch (e) {
-              console.error('Invalid JSON response:', text);
-              throw new Error('Server returned invalid JSON');
-            }
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Server error: ${errorText}`);
+          }
 
-            if (!response.ok) {
-              throw new Error(parsedResult.error || 'Request failed');
-            }
-
-            const result = parsedResult;
+          const result = await response.json();
           if (result.success && result.success.length > 0) {
             // Fetch updated students list to get real IDs and profiles
             const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
@@ -1778,18 +1744,13 @@ export const PrincipalDashboard = () => {
         })
       });
 
-      const text = await response.text();
-      let result;
-      try {
-        result = text ? JSON.parse(text) : {};
-      } catch (e) {
-        console.error('Invalid JSON response:', text);
-        throw new Error('Server returned invalid JSON');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server error response:', errorText);
+        throw new Error(`Server error: ${errorText}`);
       }
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Request failed');
-      }
+      const result = await response.json();
       console.log('Bulk import result:', result);
 
       if (result.success && result.success.length > 0) {

@@ -47,26 +47,21 @@ import { useState, FormEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { NotificationBell, addNotification } from '../components/NotificationBell';
-import { UserManagement } from '../components/UserManagement';
-import { ImageAI } from '../components/ImageAI';
-import { supabase } from '../lib/supabase';
-import { supabaseService } from '../services/supabaseService';
 
 interface School {
   id: string;
   name: string;
-  created_at: string;
-  status?: string;
-  location?: string;
-  county?: string;
-  subCounty?: string;
-  type?: string;
-  students?: string;
-  date?: string;
-  principalPhone?: string;
-  principalPass?: string;
-  teacherEmail?: string;
-  teacherPass?: string;
+  location: string;
+  county: string;
+  subCounty: string;
+  type: string;
+  students: string;
+  status: 'Active' | 'Pending' | 'Suspended';
+  date: string;
+  principalPhone: string;
+  principalPass: string;
+  teacherEmail: string;
+  teacherPass: string;
   subscriptionExpiresAt?: string;
 }
 
@@ -85,30 +80,19 @@ interface ExamMaterial {
   fileUrl?: string;
 }
 
+import { supabase } from '../lib/supabase';
+import { supabaseService } from '../services/supabaseService';
+
 export const SuperAdminDashboard = () => {
   const navigate = useNavigate();
   const [adminProfile, setAdminProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'schools' | 'analytics' | 'exams' | 'stories' | 'users' | 'image-ai'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'schools' | 'analytics' | 'exams' | 'stories' | 'users'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [totalStudents, setTotalStudents] = useState(0);
   const [activeExamsCount, setActiveExamsCount] = useState(0);
   const [users, setUsers] = useState<any[]>([]);
-  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pending' | 'Suspended'>('All');
-  const [showStoryModal, setShowStoryModal] = useState(false);
-  const [generatedCreds, setGeneratedCreds] = useState<{ principal: string; teacher: string; pass: string } | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadForm, setUploadForm] = useState({
-    title: '',
-    subject: '',
-    category: 'Exam',
-    description: '',
-    file: null as File | null
-  });
-
-  // ... (rest of the component)
+  const [searchQuery, setSearchQuery] = useState('');
 
   const resetSystemData = async () => {
     if (window.confirm('WARNING: This will delete ALL students, exams, and marks across ALL schools. This action cannot be undone. Are you sure?')) {
@@ -137,65 +121,54 @@ export const SuperAdminDashboard = () => {
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
       if (!session) {
         navigate('/super-admin');
         return;
       }
 
-      // Fetch admin data based on user
-      const { data: profile, error } = await supabase
+      // Fetch admin data based on session
+      const { data: profile } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', session.user.id)
-        .single();
+        .or(`id.eq.${session.user.id},user_id.eq.${session.user.id}`)
+        .maybeSingle();
 
-      if (profile && profile.role === 'super_admin') {
+      if (profile && profile.role === 'super-admin') {
         setAdminProfile(profile);
         localStorage.setItem('alakara_super_admin', JSON.stringify(profile));
-        await fetchAllData();
+        fetchAllData();
       } else {
         navigate('/super-admin');
       }
       setIsLoading(false);
+    };
+
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        navigate('/super-admin');
+      }
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
-
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      {/* Sidebar and Main Content */}
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className={`w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 min-h-screen ${isSidebarOpen ? 'block' : 'hidden md:block'}`}>
-          <div className="p-6">
-            <h1 className="text-xl font-bold text-kenya-green">Super Admin</h1>
-          </div>
-          <nav className="mt-6">
-            <button onClick={() => setActiveTab('dashboard')} className={`w-full text-left p-4 ${activeTab === 'dashboard' ? 'bg-gray-100 dark:bg-gray-700' : ''}`}>Dashboard</button>
-            <button onClick={() => setActiveTab('schools')} className={`w-full text-left p-4 ${activeTab === 'schools' ? 'bg-gray-100 dark:bg-gray-700' : ''}`}>Schools</button>
-            <button onClick={() => setActiveTab('users')} className={`w-full text-left p-4 ${activeTab === 'users' ? 'bg-gray-100 dark:bg-gray-700' : ''}`}>Users</button>
-            <button onClick={() => setActiveTab('image-ai')} className={`w-full text-left p-4 ${activeTab === 'image-ai' ? 'bg-gray-100 dark:bg-gray-700' : ''}`}>Image AI</button>
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 p-8">
-          {activeTab === 'dashboard' && <div>Dashboard Content</div>}
-          {activeTab === 'schools' && <div>Schools Content</div>}
-          {activeTab === 'users' && <UserManagement />}
-          {activeTab === 'image-ai' && <ImageAI />}
-        </main>
-      </div>
-    </div>
-
-
-  );
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadForm, setUploadForm] = useState({
+    title: '',
+    subject: '',
+    category: 'Exam',
+    description: '',
+    file: null as File | null
+  });
+  const [showStoryModal, setShowStoryModal] = useState(false);
+  const [generatedCreds, setGeneratedCreds] = useState<{ principal: string; teacher: string; pass: string } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pending' | 'Suspended'>('All');
 
   const [examMaterials, setExamMaterials] = useState<ExamMaterial[]>(() => {
     const saved = localStorage.getItem('alakara_exam_materials');
@@ -347,13 +320,23 @@ export const SuperAdminDashboard = () => {
 
       if (schoolData) {
         try {
-          // Supabase client initialization removed.
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          
+          const secondaryClient = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false
+            }
+          });
 
           const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
-          const dummyEmail = `user_${sanitizedPhone}@boraschool.ke`;
+          const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
           // 1. Create Principal Auth Account (using Email directly)
-          const { data: pAuthData, error: pAuthError } = await supabase.auth.signUp({
+          const { data: pAuthData, error: pAuthError } = await secondaryClient.auth.signUp({
             email: dummyEmail,
             password: creds.pass
           });
@@ -376,7 +359,7 @@ export const SuperAdminDashboard = () => {
             user_id: principalAuthId,
             school_id: schoolData.id,
             name: `${newSchool.name} Principal`,
-            email: `user_${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
+            email: `${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
             phone: sanitizedPhone,
             password: creds.pass,
             must_change_password: true,
@@ -471,8 +454,6 @@ export const SuperAdminDashboard = () => {
     { label: 'System Health', value: '99.9%', change: 'Stable', icon: ShieldCheck, color: 'text-kenya-green', bg: 'bg-kenya-green/10' },
   ];
 
-  const [searchQuery, setSearchQuery] = useState('');
-  
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/super-admin');
@@ -684,11 +665,13 @@ export const SuperAdminDashboard = () => {
       setActiveExamsCount(activeExams);
       
       if (schoolsData) {
-        const profiles = await supabaseService.getProfiles();
-        const principalProfiles = profiles.filter(p => p.role === 'principal');
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('school_id, phone, email')
+          .eq('role', 'principal');
 
         const mappedSchools: School[] = schoolsData.map((s: any) => {
-          const principalProfile = principalProfiles?.find(p => p.school_id === s.id);
+          const principalProfile = profiles?.find(p => p.school_id === s.id);
           return {
             id: s.id,
             name: s.name,
@@ -698,8 +681,7 @@ export const SuperAdminDashboard = () => {
             type: s.type || 'Secondary',
             students: (studentCounts[s.id] || 0).toString(),
             status: s.status || 'Active',
-            date: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'N/A',
-            created_at: s.created_at || '',
+            date: new Date(s.created_at).toLocaleDateString(),
             principalPhone: principalProfile?.phone || 'N/A',
             principalPass: '********',
             teacherEmail: principalProfile?.phone || 'N/A',
@@ -718,9 +700,9 @@ export const SuperAdminDashboard = () => {
           title: m.title,
           subject: m.subject,
           description: m.description,
-          schoolName: m.schoolName || 'System',
-          teacherName: m.teacherName || 'Super Admin',
-          uploadDate: m.created_at ? new Date(m.created_at).toLocaleDateString() : 'N/A',
+          schoolName: m.schools?.name || 'System',
+          teacherName: m.profiles?.name || 'Super Admin',
+          uploadDate: new Date(m.created_at).toLocaleDateString(),
           status: m.status as any,
           fileType: m.file_type as any || 'PDF',
           visibility: m.visibility as any,
@@ -739,33 +721,39 @@ export const SuperAdminDashboard = () => {
           image: s.image_url || `https://picsum.photos/seed/${s.author_name}/100/100`
         })));
       }
+
       // 4. Fetch All Users (Visibility for Super Admin)
-      const allProfiles = await supabaseService.getProfiles();
-      const allStudents = await supabaseService.getStudents();
+      const { data: allProfiles } = await supabase
+        .from('profiles')
+        .select('*, schools(name)');
+      
+      const { data: allStudents } = await supabase
+        .from('students')
+        .select('*, schools(name)');
       
       const combinedUsers = [
-        ...allProfiles.map(p => ({ 
+        ...(allProfiles || []).map(p => ({ 
           id: p.id, 
           name: p.name, 
           phone: p.phone, 
           role: p.role, 
           type: 'Staff', 
-          schoolName: p.schoolName || 'N/A',
-          createdAt: p.created_at ? new Date(p.created_at) : null
+          schoolName: p.schools?.name || 'N/A',
+          createdAt: p.created_at 
         })),
-        ...allStudents.map(s => ({ 
+        ...(allStudents || []).map(s => ({ 
           id: s.id, 
           name: s.name, 
           phone: 'N/A', 
           role: 'Student', 
           type: 'Student', 
-          schoolName: s.schoolName || 'N/A',
-          createdAt: s.created_at ? new Date(s.created_at) : null
+          schoolName: s.schools?.name || 'N/A',
+          createdAt: s.created_at 
         }))
       ];
       setUsers(combinedUsers);
-    } catch (error) {
-      console.error('Error fetching data from Supabase:', error);
+    } catch (err) {
+      console.error('Error loading super admin data:', err);
     } finally {
       setIsLoading(false);
     }

@@ -31,6 +31,9 @@ export const Hero = () => {
               Bora School empowers Kenyan schools with a secure, cloud-based platform to create, manage, and grade exams automatically. Real-time results, deep analytics, and zero paperwork.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+              <Link to="/register-school">
+                <Button size="lg" className="w-full sm:w-auto">Register Your School</Button>
+              </Link>
               <Button variant="outline" size="lg" className="w-full sm:w-auto gap-2">
                 <Play className="w-5 h-5 fill-current" />
                 Watch Demo
