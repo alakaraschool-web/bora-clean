@@ -6798,52 +6798,52 @@ export const PrincipalDashboard = () => {
               <div className="p-6 max-h-[60vh] overflow-y-auto">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left min-w-[400px]">
-                  <thead className="text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                    <tr>
-                      <th className="px-4 py-3">Rank</th>
-                      <th className="px-4 py-3">Student</th>
-                      <th className="px-4 py-3">Class</th>
-                      <th className="px-4 py-3 text-right">Score</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {marks
-                      .filter(m => 
-                        m.examId === selectedProcessingExamId && 
-                        m.subject === viewingSubjectChampions &&
-                        (selectedProcessingClass === 'All' || students.find(s => s.id === m.studentId)?.class === selectedProcessingClass)
-                      )
-                      .sort((a, b) => parseFloat(b.total || b.score) - parseFloat(a.total || a.score))
-                      .map((m, idx) => {
-                        const student = students.find(s => s.id === m.studentId);
-                        return (
-                          <tr key={m.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-4">
-                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
-                                idx === 0 ? 'bg-yellow-100 text-yellow-700' : 
-                                idx === 1 ? 'bg-gray-100 text-gray-600' :
-                                idx === 2 ? 'bg-orange-100 text-orange-700' : 'text-gray-400'
-                              }`}>
-                                {idx + 1}
-                              </span>
-                            </td>
-                            <td className="px-4 py-4">
-                              <p className="font-bold text-kenya-black">{student?.name}</p>
-                              <p className="text-[10px] text-gray-400 font-mono">{student?.adm}</p>
-                            </td>
-                            <td className="px-4 py-4 text-sm text-gray-500">{student?.class}</td>
-                            <td className="px-4 py-4 text-right">
-                              <span className="font-black text-kenya-green">{m.total || m.score}%</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
+                    <thead className="text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                      <tr>
+                        <th className="px-4 py-3">Rank</th>
+                        <th className="px-4 py-3">Student</th>
+                        <th className="px-4 py-3">Class</th>
+                        <th className="px-4 py-3 text-right">Score</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {marks
+                        .filter(m => 
+                          m.examId === selectedProcessingExamId && 
+                          m.subject === viewingSubjectChampions &&
+                          (selectedProcessingClass === 'All' || students.find(s => s.id === m.studentId)?.class === selectedProcessingClass)
+                        )
+                        .sort((a, b) => parseFloat(b.total || b.score) - parseFloat(a.total || a.score))
+                        .map((m, idx) => {
+                          const student = students.find(s => s.id === m.studentId);
+                          return (
+                            <tr key={m.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-4">
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                                  idx === 0 ? 'bg-yellow-100 text-yellow-700' : 
+                                  idx === 1 ? 'bg-gray-100 text-gray-600' :
+                                  idx === 2 ? 'bg-orange-100 text-orange-700' : 'text-gray-400'
+                                }`}>
+                                  {idx + 1}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4">
+                                <p className="font-bold text-kenya-black">{student?.name}</p>
+                                <p className="text-[10px] text-gray-400 font-mono">{student?.adm}</p>
+                              </td>
+                              <td className="px-4 py-4 text-sm text-gray-500">{student?.class}</td>
+                              <td className="px-4 py-4 text-right">
+                                <span className="font-black text-kenya-green">{m.total || m.score}%</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          </motion.div>
-        </div>
+            </motion.div>
+          </div>
         )}
       </main>
     </div>
