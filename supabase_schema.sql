@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS schools (
     principal_name TEXT,
     status TEXT DEFAULT 'Active',
     subscription_expires_at TIMESTAMPTZ,
+    locked BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -26,7 +27,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     phone TEXT UNIQUE NOT NULL, -- For phone-based login
     password TEXT, -- For fallback login
     name TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('super-admin', 'principal', 'teacher', 'student')),
+    role TEXT NOT NULL CHECK (role IN ('super_admin', 'principal', 'teacher', 'student')),
     avatar_url TEXT,
     assignments JSONB DEFAULT '[]',
     student_id UUID, -- Link to students table if role is student
@@ -169,27 +170,46 @@ CREATE TABLE IF NOT EXISTS messages (
     school_id UUID REFERENCES schools(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     type TEXT DEFAULT 'direct' CHECK (type IN ('direct', 'broadcast')),
-    target_role TEXT CHECK (target_role IN ('teacher', 'principal', 'super-admin')),
+    target_role TEXT CHECK (target_role IN ('teacher', 'principal', 'super_admin')),
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Trigger to prevent teacher role changes
-CREATE OR REPLACE FUNCTION prevent_teacher_role_change()
+-- Trigger to handle new user profile creation
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- If the old role was 'teacher', prevent changing it to anything else
-  IF OLD.role = 'teacher' AND NEW.role != 'teacher' THEN
-    RAISE EXCEPTION 'Teacher role cannot be changed.';
+  INSERT INTO public.profiles (user_id, email, name, role)
+  VALUES (
+    new.id, 
+    new.email, 
+    new.raw_user_meta_data->>'name', 
+    COALESCE(new.raw_user_meta_data->>'role', 'student')
+  );
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- Trigger to prevent locked school deletion
+CREATE OR REPLACE FUNCTION prevent_locked_school_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.locked = true THEN
+    RAISE EXCEPTION 'Cannot delete a locked school.';
   END IF;
-  RETURN NEW;
+  RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trg_prevent_teacher_role_change ON profiles;
-CREATE TRIGGER trg_prevent_teacher_role_change
-BEFORE UPDATE ON profiles
+DROP TRIGGER IF EXISTS trg_prevent_locked_school_delete ON schools;
+CREATE TRIGGER trg_prevent_locked_school_delete
+BEFORE DELETE ON schools
 FOR EACH ROW
-EXECUTE FUNCTION prevent_teacher_role_change();
+EXECUTE FUNCTION prevent_locked_school_delete();
 
 -- RLS Policies (Restricted)
 ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
@@ -213,12 +233,12 @@ BEGIN
   -- Try to get role from profiles
   SELECT role INTO _role FROM profiles WHERE user_id = auth.uid() LIMIT 1;
   
-  -- Bootstrap super-admin by email or phone if no profile exists yet
+  -- Bootstrap super_admin by email or phone if no profile exists yet
   IF _role IS NULL AND (
     auth.jwt() ->> 'email' = 'alakaraschool@gmail.com' OR
     auth.jwt() ->> 'phone' = '+254712345678' -- Example placeholder, should ideally be dynamic or matched
   ) THEN
-    RETURN 'super-admin';
+    RETURN 'super_admin';
   END IF;
   
   RETURN _role;
@@ -239,20 +259,20 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 1. Schools Policies
-CREATE POLICY "Super-admin schools access" ON schools FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin schools access" ON schools FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 CREATE POLICY "School members select school" ON schools FOR SELECT 
 USING (id = get_my_school_id());
 
-CREATE POLICY "Enable insert for authenticated users" ON schools FOR INSERT 
-WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Restricted schools insert" ON schools FOR INSERT 
+WITH CHECK (get_my_role() = 'super_admin');
 
 -- 2. Profiles Policies
-CREATE POLICY "Super-admin profiles access" ON profiles FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin profiles access" ON profiles FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 CREATE POLICY "Enable insert for authenticated users" ON profiles FOR INSERT 
 WITH CHECK (auth.uid() = user_id OR auth.uid() = id);
@@ -273,7 +293,7 @@ CREATE POLICY "Principal profiles select" ON profiles FOR SELECT USING (
 CREATE POLICY "Principal profiles insert" ON profiles FOR INSERT WITH CHECK (
     get_my_role() = 'principal' 
     AND school_id = get_my_school_id()
-    AND role NOT IN ('super-admin', 'principal')
+    AND role NOT IN ('super_admin', 'principal')
 );
 
 CREATE POLICY "Principal profiles update" ON profiles FOR UPDATE USING (
@@ -281,14 +301,14 @@ CREATE POLICY "Principal profiles update" ON profiles FOR UPDATE USING (
     AND school_id = get_my_school_id()
     AND (role != 'principal' OR user_id = auth.uid())
 ) WITH CHECK (
-    -- Principals cannot change roles to super-admin or principal for others
-    (user_id = auth.uid()) OR (role NOT IN ('super-admin', 'principal'))
+    -- Principals cannot change roles to super_admin or principal for others
+    (user_id = auth.uid()) OR (role NOT IN ('super_admin', 'principal'))
 );
 
 CREATE POLICY "Principal profiles delete" ON profiles FOR DELETE USING (
     get_my_role() = 'principal' 
     AND school_id = get_my_school_id()
-    AND role NOT IN ('super-admin', 'principal')
+    AND role NOT IN ('super_admin', 'principal')
 );
 
 CREATE POLICY "Teacher profiles select" ON profiles FOR SELECT USING (
@@ -303,36 +323,36 @@ CREATE POLICY "Student profiles select" ON profiles FOR SELECT USING (
 );
 
 -- 3. Students Policies
-CREATE POLICY "Super-admin students access" ON students FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin students access" ON students FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 CREATE POLICY "School members students access" ON students FOR ALL 
 USING (school_id = get_my_school_id())
 WITH CHECK (school_id = get_my_school_id());
 
 -- 4. Exams Policies
-CREATE POLICY "Super-admin exams access" ON exams FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin exams access" ON exams FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 CREATE POLICY "School members exams access" ON exams FOR ALL 
 USING (school_id = get_my_school_id())
 WITH CHECK (school_id = get_my_school_id());
 
 -- 5. Marks Policies
-CREATE POLICY "Super-admin marks access" ON marks FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin marks access" ON marks FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 CREATE POLICY "School members marks access" ON marks FOR ALL 
 USING (EXISTS (SELECT 1 FROM exams WHERE exams.id = marks.exam_id AND exams.school_id = get_my_school_id()))
 WITH CHECK (EXISTS (SELECT 1 FROM exams WHERE exams.id = marks.exam_id AND exams.school_id = get_my_school_id()));
 
 -- 6. Exam Materials Policies
-CREATE POLICY "Super-admin materials access" ON exam_materials FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin materials access" ON exam_materials FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 CREATE POLICY "Public materials select" ON exam_materials FOR SELECT 
 USING (visibility = 'Public');
@@ -342,36 +362,36 @@ USING (school_id = get_my_school_id())
 WITH CHECK (school_id = get_my_school_id());
 
 -- 7. School Settings Policies
-CREATE POLICY "Super-admin settings access" ON school_settings FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin settings access" ON school_settings FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 CREATE POLICY "School members settings access" ON school_settings FOR ALL 
 USING (school_id = get_my_school_id())
 WITH CHECK (school_id = get_my_school_id());
 
 -- 8. Audit Logs Policies
-CREATE POLICY "Super-admin logs access" ON audit_logs FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin logs access" ON audit_logs FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 CREATE POLICY "School members logs access" ON audit_logs FOR ALL 
 USING (school_id = get_my_school_id())
 WITH CHECK (school_id = get_my_school_id());
 
 -- 9. Classes Policies
-CREATE POLICY "Super-admin classes access" ON classes FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin classes access" ON classes FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 CREATE POLICY "School members classes access" ON classes FOR ALL 
 USING (school_id = get_my_school_id())
 WITH CHECK (school_id = get_my_school_id());
 
 -- 10. Streams Policies
-CREATE POLICY "Super-admin streams access" ON streams FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin streams access" ON streams FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 CREATE POLICY "School members streams access" ON streams FOR ALL 
 USING (EXISTS (SELECT 1 FROM classes WHERE classes.id = streams.class_id AND classes.school_id = get_my_school_id()))
@@ -381,9 +401,9 @@ WITH CHECK (EXISTS (SELECT 1 FROM classes WHERE classes.id = streams.class_id AN
 CREATE POLICY "Public stories select" ON success_stories FOR SELECT 
 USING (true);
 
-CREATE POLICY "Super-admin stories access" ON success_stories FOR ALL 
-USING (get_my_role() = 'super-admin')
-WITH CHECK (get_my_role() = 'super-admin');
+CREATE POLICY "Super_admin stories access" ON success_stories FOR ALL 
+USING (get_my_role() = 'super_admin')
+WITH CHECK (get_my_role() = 'super_admin');
 
 -- 12. Messages Policies
 CREATE POLICY "Messages access" ON messages FOR ALL 
@@ -391,9 +411,9 @@ USING (
     sender_id = auth.uid() OR 
     receiver_id = auth.uid() OR 
     (type = 'broadcast' AND target_role = get_my_role() AND school_id = get_my_school_id()) OR
-    get_my_role() = 'super-admin'
+    get_my_role() = 'super_admin'
 )
 WITH CHECK (
     sender_id = auth.uid() OR 
-    get_my_role() = 'super-admin'
+    get_my_role() = 'super_admin'
 );

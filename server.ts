@@ -15,11 +15,13 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
-  console.log('Supabase URL:', supabaseUrl);
-  console.log('Supabase Service Key exists:', !!supabaseServiceKey);
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('CRITICAL ERROR: Supabase environment variables missing! VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.');
+    process.exit(1);
+  }
 
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {

@@ -166,9 +166,26 @@ export const SuperAdminDashboard = () => {
     description: '',
     file: null as File | null
   });
-  const [showStoryModal, setShowStoryModal] = useState(false);
-  const [generatedCreds, setGeneratedCreds] = useState<{ principal: string; teacher: string; pass: string } | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pending' | 'Suspended'>('All');
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [selectedSpecialRole, setSelectedSpecialRole] = useState('');
+
+  const specialRoles = ['Head of Department', 'Year Group Coordinator', 'Exam Officer', 'None'];
+
+  const handleUpdateStaffRole = async () => {
+    if (!editingUser) return;
+    try {
+      const newAssignments = selectedSpecialRole === 'None' ? [] : [selectedSpecialRole];
+      await supabaseService.updateProfile(editingUser.id, { assignments: newAssignments });
+      
+      setUsers(users.map(u => u.id === editingUser.id ? { ...u, assignments: newAssignments } : u));
+      setShowRoleModal(false);
+      addNotification({ title: 'Role Updated', message: `Assigned ${selectedSpecialRole} to ${editingUser.name}`, type: 'success', role: 'super_admin' });
+    } catch (e) {
+      console.error('Update error:', e);
+      alert('Failed to update role');
+    }
+  };
 
   const [examMaterials, setExamMaterials] = useState<ExamMaterial[]>(() => {
     const saved = localStorage.getItem('alakara_exam_materials');
