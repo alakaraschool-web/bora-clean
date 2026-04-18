@@ -174,6 +174,15 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 13. Admin Invites Table
+CREATE TABLE IF NOT EXISTS admin_invites (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    token TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Trigger to handle new user profile creation
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$

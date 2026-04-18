@@ -156,6 +156,8 @@ export const SuperAdminDashboard = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
+  const [adminInviteLink, setAdminInviteLink] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -169,6 +171,20 @@ export const SuperAdminDashboard = () => {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [selectedSpecialRole, setSelectedSpecialRole] = useState('');
+
+  const generateAdminInvite = async () => {
+    setIsGeneratingInvite(true);
+    try {
+      const res = await fetch('/api/auth/generate-admin-invite', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAdminInviteLink(`${window.location.origin}/register-admin?token=${data.token}`);
+    } catch (error: any) {
+      alert('Failed to generate invite: ' + error.message);
+    } finally {
+      setIsGeneratingInvite(false);
+    }
+  };
 
   const specialRoles = ['Head of Department', 'Year Group Coordinator', 'Exam Officer', 'None'];
 
@@ -1480,6 +1496,14 @@ export const SuperAdminDashboard = () => {
                       className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 w-64"
                     />
                   </div>
+                  <Button onClick={generateAdminInvite} className="gap-2 bg-kenya-black hover:bg-black" disabled={isGeneratingInvite}>
+                    {isGeneratingInvite ? 'Generating...' : 'Invite Admin'}
+                  </Button>
+                  {adminInviteLink && (
+                    <div className="text-sm">
+                      Invite Link: <input readOnly value={adminInviteLink} className="border p-1 rounded" />
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -180,6 +180,56 @@ async function startServer() {
     }
   });
 
+  // API Route to generate a super admin invite
+  app.post('/api/auth/generate-admin-invite', async (req, res) => {
+    try {
+      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      
+      const { data, error } = await supabaseAdmin.from('admin_invites').insert({
+        token,
+        expires_at: expiresAt.toISOString()
+      }).select().single();
+      
+      if (error) throw error;
+      
+      res.json({ token });
+    } catch (error: any) {
+      console.error('Error generating admin invite:', error);
+      res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+  });
+
+  // API Route to validate and consume a super admin invite
+  app.post('/api/auth/validate-admin-invite', async (req, res) => {
+    const { token } = req.body;
+    try {
+      const { data: invite, error } = await supabaseAdmin.from('admin_invites').select('*').eq('token', token).maybeSingle();
+      
+      if (error || !invite || invite.used || new Date(invite.expires_at) < new Date()) {
+        return res.status(400).json({ error: 'Invalid or expired invite token' });
+      }
+      
+      res.json({ valid: true, id: invite.id });
+    } catch (error: any) {
+      console.error('Error validating admin invite:', error);
+      res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+  });
+
+  // API Route to consume a super admin invite
+  app.post('/api/auth/consume-admin-invite', async (req, res) => {
+    const { id } = req.body;
+    try {
+      const { error } = await supabaseAdmin.from('admin_invites').update({ used: true }).eq('id', id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error consuming admin invite:', error);
+      res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+  });
+
   // API Route to create a user using Service Role Key
   app.post('/api/auth/create-user', async (req, res) => {
     const { email, password, role, name, phone, school_id, student_id } = req.body;
