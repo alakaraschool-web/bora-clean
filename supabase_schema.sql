@@ -227,27 +227,23 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to get current user's role
 CREATE OR REPLACE FUNCTION get_my_role() RETURNS TEXT AS $$
-DECLARE
-  _role TEXT;
 BEGIN
-  -- Try to get role from profiles
-  SELECT role INTO _role FROM profiles WHERE user_id = auth.uid() LIMIT 1;
-  
   -- Bootstrap super_admin by email or phone if no profile exists yet
-  IF _role IS NULL AND (
+  IF (
     auth.jwt() ->> 'email' = 'alakaraschool@gmail.com' OR
-    auth.jwt() ->> 'phone' = '+254712345678' -- Example placeholder, should ideally be dynamic or matched
+    auth.jwt() ->> 'phone' = '+254712345678'
   ) THEN
     RETURN 'super_admin';
   END IF;
-  
-  RETURN _role;
+
+  -- Try to get role from profiles
+  RETURN (SELECT role FROM public.profiles WHERE user_id = auth.uid() LIMIT 1);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Helper function to get current user's school_id
 CREATE OR REPLACE FUNCTION get_my_school_id() RETURNS UUID AS $$
-  SELECT school_id FROM profiles WHERE user_id = auth.uid() LIMIT 1;
+  SELECT school_id FROM public.profiles WHERE user_id = auth.uid() LIMIT 1;
 $$ LANGUAGE sql SECURITY DEFINER;
 
 -- Helper function for email discovery (Publicly accessible via RPC but secure)

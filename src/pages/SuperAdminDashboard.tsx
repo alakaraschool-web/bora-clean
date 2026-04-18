@@ -337,58 +337,32 @@ export const SuperAdminDashboard = () => {
 
       if (schoolData) {
         try {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-          
-          const secondaryClient = createClient(supabaseUrl, supabaseAnonKey, {
-            auth: {
-              persistSession: false,
-              autoRefreshToken: false,
-              detectSessionInUrl: false
-            }
-          });
-
           const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
-          const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
+          const dummyEmail = `principal.${sanitizedPhone}@boraschool.ke`;
 
-          // 1. Create Principal Auth Account (using Email directly)
-          const { data: pAuthData, error: pAuthError } = await secondaryClient.auth.signUp({
-            email: dummyEmail,
-            password: creds.pass
+          // 1. Create Principal Auth Account and Profile via API
+          const pAuthRes = await fetch('/api/auth/create-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: dummyEmail,
+              password: creds.pass,
+              role: 'principal',
+              name: `${newSchool.name} Principal`,
+              phone: sanitizedPhone,
+              school_id: schoolData.id
+            })
           });
 
-          if (pAuthError && pAuthError.message !== 'User already registered') {
-            console.error('Principal Auth Error:', pAuthError);
+          if (!pAuthRes.ok) {
+            console.error('Principal Auth/Profile Error:', await pAuthRes.text());
           }
 
-          let principalId = pAuthData.user?.id;
-          let principalAuthId = pAuthData.user?.id;
-          if (!principalId) {
-            const { data: existingP } = await supabase.from('profiles').select('id, user_id').eq('phone', sanitizedPhone).eq('role', 'principal').maybeSingle();
-            principalId = existingP?.id || crypto.randomUUID();
-            principalAuthId = existingP?.user_id || null;
-          }
-          
-          // Create principal profile
-          const { error: pError } = await supabase.from('profiles').upsert({
-            id: principalId,
-            user_id: principalAuthId,
-            school_id: schoolData.id,
-            name: `${newSchool.name} Principal`,
-            email: `${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
-            phone: sanitizedPhone,
-            password: creds.pass,
-            must_change_password: true,
-            role: 'principal'
-          });
-
-          if (pError) console.error('Principal Profile Error:', pError);
-
-          // 2. Create Teacher Auth Account (using a derived phone or username if needed, but for now let's just create the profile)
-          // Since we can't have duplicate phones in Auth, and we don't use email, 
-          // we might need a different strategy for the default teacher account if it needs Auth.
-          // For now, we'll just create the profile without an auth link if it's just a placeholder.
+          // 2. Create default teacher profile (server-side via API route or just manual upsert if teacher doesn't need auth)
+          // Actually, let's also create the teacher via API if needed, 
+          // or at least ensure the profile is created. 
+          // For now, let's keep the existing profile creation for teacher to avoid overcomplicating, 
+          // but call it via an API route if possible, or just insert it if RLS allows.
           
           const teacherId = crypto.randomUUID();
           
@@ -397,7 +371,7 @@ export const SuperAdminDashboard = () => {
             id: teacherId,
             school_id: schoolData.id,
             name: `${newSchool.name} Staff`,
-            phone: null, // Avoid conflict with principal's phone
+            phone: null, 
             password: creds.pass,
             must_change_password: true,
             role: 'teacher'
