@@ -331,6 +331,14 @@ export const SuperAdminLogin = () => {
               <ArrowLeft className="w-3 h-3" />
               Return to Surface
             </Link>
+            <div className="mt-4 text-center">
+              <Link
+                to="/register-admin"
+                className="text-[10px] font-bold text-kenya-green hover:underline uppercase tracking-widest"
+              >
+                Register New Super Admin
+              </Link>
+            </div>
           </div>
         </motion.div>
         
