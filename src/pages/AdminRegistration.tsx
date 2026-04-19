@@ -36,7 +36,13 @@ export const AdminRegistration = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, role: 'super_admin', school_id: '00000000-0000-0000-0000-000000000000' }) // Dummy school_id
       });
-      if (!res.ok) throw new Error('Failed to create account');
+      
+      const responseText = await res.text();
+      console.log('Response status:', res.status, 'Body:', responseText);
+      
+      if (!res.ok) throw new Error(`Failed to create account: ${res.status} ${responseText}`);
+      
+      const resData = JSON.parse(responseText);
       
       // 2. Consume Invite
       await fetch('/api/auth/consume-admin-invite', {

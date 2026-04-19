@@ -52,6 +52,7 @@ import {
 import { NotificationBell, addNotification } from '../components/NotificationBell';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
+import { BulkStudentPreviewModal } from '../components/BulkStudentPreviewModal';
 import { Letterhead } from '../components/Letterhead';
 import { 
   BarChart, 
@@ -144,6 +145,8 @@ export const PrincipalDashboard = () => {
 
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showBulkUploadPreview, setShowBulkUploadPreview] = useState(false);
+  const [pendingBulkStudents, setPendingBulkStudents] = useState<any[]>([]);
   const [showAddClassModal, setShowAddClassModal] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [selectedEditClass, setSelectedEditClass] = useState('');
@@ -1586,7 +1589,6 @@ export const PrincipalDashboard = () => {
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-        const newStudents = [...students];
         const studentsToInsert: any[] = [];
 
         data.forEach((row, index) => {
@@ -1612,66 +1614,51 @@ export const PrincipalDashboard = () => {
           studentsToInsert.push(studentData);
         });
 
-        setStudents([...students, ...studentsToInsert.map(s => ({ 
+        setPendingBulkStudents(studentsToInsert.map(s => ({ 
           ...s, 
           id: crypto.randomUUID(),
           adm: s.admission_number // Ensure adm is set for UI consistency
-        }))]);
-        
-        // Sync with Supabase via Server API
-        if (studentsToInsert.length > 0) {
-          try {
-            const response = await fetch('/api/auth/bulk-create-students', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                students: studentsToInsert,
-                school_id: school.id
-              })
-            });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Server error: ${errorText}`);
-          }
-
-          const result = await response.json();
-          if (result.success && result.success.length > 0) {
-            // Fetch updated students list to get real IDs and profiles
-            const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
-            if (data) {
-              setStudents(data.map(s => ({
-                id: s.id,
-                name: s.name,
-                adm: s.admission_number,
-                class: s.class,
-                status: s.status || 'Active',
-                gender: s.gender || 'Male',
-                upi_no: s.upi_no,
-                kpsea_no: s.kpsea_no,
-                dob: s.dob,
-                admission_date: s.admission_date,
-                parent_name: s.parent_name,
-                parent_phone: s.parent_phone,
-                house: s.house,
-                profile_image: s.profile_image || null,
-                password: s.password
-              })));
-            }
-            alert(`Successfully imported ${result.success.length} students! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
-          } else if (result.error) {
-            alert('Bulk import failed: ' + result.error);
-          }
-          } catch (err) {
-            console.error('Error syncing bulk students:', err);
-            alert(`Bulk import failed: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
-          }
-        }
-      } catch (err) {
-        alert('Error parsing Excel file. Please ensure it follows the template format.');
+        })));
+        setShowBulkUploadPreview(true);
+      } catch (error: any) {
+        console.error('Error processing bulk upload:', error);
+        alert('Failed to process file: ' + error.message);
       }
     };
     reader.readAsBinaryString(file);
+  };
+
+  const confirmBulkUpload = async () => {
+    try {
+      const response = await fetch('/api/auth/bulk-create-students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          students: pendingBulkStudents,
+          school_id: school.id
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to save students');
+      
+      const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
+      if (data) {
+        setStudents(data.map(s => ({
+          ...s,
+          adm: s.admission_number,
+          class: s.class,
+          status: s.status || 'Active',
+          gender: s.gender || 'Male'
+        })));
+      }
+
+      setPendingBulkStudents([]);
+      setShowBulkUploadPreview(false);
+      addNotification({ title: 'Students Saved', message: 'Bulk upload completed successfully.', type: 'success' });
+    } catch (e: any) {
+      console.error(e);
+      addNotification({ title: 'Upload Failed', message: e.message, type: 'error' });
+    }
   };
 
   const handleClassBulkStudentUpload = (e: ChangeEvent<HTMLInputElement>, className: string) => {
@@ -6764,6 +6751,12 @@ export const PrincipalDashboard = () => {
             </motion.div>
           </div>
         )}
+        <BulkStudentPreviewModal 
+          isOpen={showBulkUploadPreview} 
+          onClose={() => setShowBulkUploadPreview(false)}
+          students={pendingBulkStudents}
+          onSave={confirmBulkUpload}
+        />
         {/* Subject Champions Modal */}
         {viewingSubjectChampions && (
           <div className="fixed inset-0 bg-kenya-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
