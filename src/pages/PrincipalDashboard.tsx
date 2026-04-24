@@ -6651,6 +6651,7 @@ export const PrincipalDashboard = () => {
                       </Button>
                     </div>
                   )}
+
                   <div className="flex gap-4 mt-6">
                     <div className="flex-1 relative">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -6671,25 +6672,11 @@ export const PrincipalDashboard = () => {
                       />
                     </div>
                   </div>
-
-                        placeholder="Search student by name or admission number to add..."
-                        className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            const query = (e.target as HTMLInputElement).value;
-                            const found = students.find(s => s.name.toLowerCase().includes(query.toLowerCase()) || s.adm.includes(query));
-                            if (found) {
-                              setStudents(students.map(s => s.id === found.id ? { ...s, class: managingClass.name } : s));
-                              (e.target as HTMLInputElement).value = '';
-                            }
-                          }
-                        }}
-                      />
+                    <div className="flex justify-end pt-4">
+                      <Button onClick={() => { setManagingClass(null); setActiveTab('students'); setShowAddStudentModal(true); }}>
+                        Register New Student
+                      </Button>
                     </div>
-                    <Button onClick={() => { setManagingClass(null); setActiveTab('students'); setShowAddStudentModal(true); }}>
-                      Register New Student
-                    </Button>
-                  </div>
                   <p className="text-[10px] text-gray-400 mt-2 ml-1 italic">Type name/adm and press Enter to quickly move a student to this class.</p>
                 </div>
 
