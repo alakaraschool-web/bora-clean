@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/Button';
 
@@ -30,8 +30,9 @@ export const AdminRegistration = () => {
     if (!invite) return;
     setIsLoading(true);
     try {
-      // 1. Create User
-      const res = await fetch('/api/auth/create-user', {
+      const url = `${window.location.origin}/api/auth/create-user`;
+      console.log('Attempting to fetch:', url);
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, role: 'super_admin', school_id: '00000000-0000-0000-0000-000000000000' }) // Dummy school_id

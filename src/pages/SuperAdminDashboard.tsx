@@ -93,6 +93,9 @@ export const SuperAdminDashboard = () => {
   const [activeExamsCount, setActiveExamsCount] = useState(0);
   const [users, setUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [generatedCreds, setGeneratedCreds] = useState<any>(null);
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pending' | 'Suspended'>('All');
+  const [showStoryModal, setShowStoryModal] = useState(false);
 
   const resetSystemData = async () => {
     if (window.confirm('WARNING: This will delete ALL students, exams, and marks across ALL schools. This action cannot be undone. Are you sure?')) {
