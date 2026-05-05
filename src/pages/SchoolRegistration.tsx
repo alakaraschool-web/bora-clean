@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
-import { supabase } from '../lib/supabase';
+import { supabase, safeFetch } from '../lib/supabase';
 
 export const SchoolRegistration = () => {
   const navigate = useNavigate();
@@ -79,7 +79,7 @@ export const SchoolRegistration = () => {
       const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
       // 1. Sign up user in Supabase Auth using email (more reliable than phone in this setup)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data, error: authError } = await safeFetch(() => supabase.auth.signUp({
         email: dummyEmail,
         password: formData.password,
         options: {
@@ -88,13 +88,14 @@ export const SchoolRegistration = () => {
             role: 'principal'
           }
         }
-      });
+      }));
+      const authData = data;
 
       if (authError) {
         console.error('Full Auth Error:', authError);
         throw authError;
       }
-      if (!authData.user) throw new Error('Registration failed');
+      if (!authData || !authData.user) throw new Error('Registration failed');
 
       // 2. Create School in Supabase
       const { data: schoolData, error: schoolError } = await supabase
