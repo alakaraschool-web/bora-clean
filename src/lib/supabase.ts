@@ -16,5 +16,48 @@ if (!isValidUrl(supabaseUrl) || !supabaseAnonKey) {
 }
 
 export const supabase = (isValidUrl(supabaseUrl) && supabaseAnonKey)
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        storageKey: 'sb-custom-auth',
+        flowType: 'pkce'
+      }
+    })
   : createClient('https://placeholder.supabase.co', 'placeholder');
+
+let cachedSession: any = null;
+
+export const getSessionSafe = async () => {
+    if (cachedSession) return cachedSession;
+
+    const { data } = await supabase.auth.getSession();
+    cachedSession = data.session;
+
+    return cachedSession;
+};
+
+export const safeFetch = async (fn: any) => {
+  try {
+    return await fn();
+  } catch (err: any) {
+    console.error('Fetch failed:', err);
+    return { data: null, error: err };
+  }
+};
+
+export const fetchWithTimeout = async (url: string, options: any = {}, timeout = 10000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+};

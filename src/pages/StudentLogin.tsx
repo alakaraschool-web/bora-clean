@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { PasswordResetModal } from '../components/PasswordResetModal';
 import { ForcePasswordChangeModal } from '../components/ForcePasswordChangeModal';
-import { supabase } from '../lib/supabase';
+import { supabase, getSessionSafe } from '../lib/supabase';
 
 export const StudentLogin = () => {
   const [username, setUsername] = useState('');
@@ -21,7 +21,7 @@ export const StudentLogin = () => {
   useEffect(() => {
     // Check if already logged in
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSessionSafe();
       if (session) {
         console.log('Session found, checking profile for user:', session.user.id);
         const { data: profile, error: profileError } = await supabase

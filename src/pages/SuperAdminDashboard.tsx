@@ -396,10 +396,8 @@ export const SuperAdminDashboard = () => {
             role: 'teacher'
           });
 
-          if (tError) console.error('Teacher Profile Error:', tError);
-
-          if (pError || tError) {
-            console.error('Error creating profiles:', pError || tError);
+          if (tError) {
+            console.error('Teacher Profile Error:', tError);
           }
           
           setSchools([school, ...schools]);

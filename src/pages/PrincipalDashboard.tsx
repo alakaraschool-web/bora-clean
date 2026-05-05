@@ -6734,9 +6734,10 @@ export const PrincipalDashboard = () => {
                     </table>
                   </div>
                 </div>
-              </motion.div>
-            </div>
-            )}
+              </div>
+            </motion.div>
+          </div>
+        )}
         <BulkStudentPreviewModal 
           isOpen={showBulkUploadPreview} 
           onClose={() => setShowBulkUploadPreview(false)}
