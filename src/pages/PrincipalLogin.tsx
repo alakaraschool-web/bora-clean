@@ -82,97 +82,85 @@ export const PrincipalLogin = () => {
       const sanitizedInput = phone.trim();
       const cleanPhone = sanitizedInput.replace(/\s+/g, '');
       
-      // Try Supabase Auth directly with phone
-      const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`;
+      const dummyEmail = `user.${cleanPhone}@boraschool.ke`;
       let { data, error: authError } = await supabase.auth.signInWithPassword({
-        phone: formattedPhone,
+        email: dummyEmail,
         password
       });
 
-      // Fallback to dummy email if phone login fails
+      // Handle cases where email-based sign-in fails
       if (authError) {
-        const dummyEmail = `user.${cleanPhone}@boraschool.ke`;
-        const { data: emailData, error: emailError } = await supabase.auth.signInWithPassword({
-          email: dummyEmail,
-          password
-        });
-        
-        if (!emailError) {
-          data = emailData;
-          authError = null;
-        } else {
-          // If both Auth attempts fail, check if the user exists in profiles
-          // but don't log them in without a session.
-          const { data: profileExists } = await supabase
-            .from('profiles')
-            .select('id, password, role')
-            .eq('phone', cleanPhone)
-            .eq('role', 'principal')
-            .maybeSingle();
+        // If Auth failed, check if the user exists in profiles
+        // but don't log them in without a session.
+        const { data: profileExists } = await supabase
+          .from('profiles')
+          .select('id, password, role')
+          .eq('phone', cleanPhone)
+          .eq('role', 'principal')
+          .maybeSingle();
 
-          if (profileExists && profileExists.password === password) {
-            // User exists in profiles but Auth failed (likely password mismatch after reset)
-            // Try to sync Auth password via server-side API
-            try {
-              const syncResponse = await fetch('/api/auth/reset-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ profileId: profileExists.id, newPassword: password })
+        if (profileExists && profileExists.password === password) {
+          // User exists in profiles but Auth failed (likely password mismatch after reset)
+          // Try to sync Auth password via server-side API
+          try {
+            const syncResponse = await fetch('/api/auth/reset-password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ profileId: profileExists.id, newPassword: password })
+            });
+            
+            if (syncResponse.ok) {
+              // Sync successful, try to sign in again
+              const { data: retryAuth, error: retryError } = await supabase.auth.signInWithPassword({
+                email: dummyEmail,
+                password: password
               });
               
-              if (syncResponse.ok) {
-                // Sync successful, try to sign in again
-                const { data: retryAuth, error: retryError } = await supabase.auth.signInWithPassword({
-                  email: dummyEmail,
-                  password: password
-                });
-                
-                if (!retryError && retryAuth.user) {
-                  data = { user: retryAuth.user, session: retryAuth.session };
-                  authError = null;
-                }
-              }
-            } catch (syncErr) {
-              console.error('Auth sync failed:', syncErr);
-            }
-
-            if (authError) {
-              // If sync failed or still can't login, try signUp as fallback (if not already registered)
-              const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                email: dummyEmail,
-                password: password,
-                options: {
-                  data: {
-                    role: 'principal'
-                  }
-                }
-              });
-
-              if (!signUpError && signUpData.user) {
-                data = { user: signUpData.user, session: signUpData.session };
+              if (!retryError && retryAuth.user) {
+                data = { user: retryAuth.user, session: retryAuth.session };
                 authError = null;
-                
-                // Update the profile with the new user_id if it's different
-                console.log('Updating profile with new user_id:', signUpData.user.id);
-                const { error: updateError } = await supabase
-                  .from('profiles')
-                  .update({ user_id: signUpData.user.id })
-                  .eq('phone', cleanPhone)
-                  .eq('role', 'principal');
-                
-                if (updateError) {
-                  console.error('Error updating profile with user_id:', updateError);
-                }
-              } else if (signUpError?.message?.includes('already registered')) {
-                // User exists in Auth but password was wrong (since signIn failed)
-                throw new Error('Invalid principal credentials. If you recently reset your password, please wait a moment and try again.');
-              } else {
-                throw authError || emailError;
               }
             }
-          } else {
-            throw authError || emailError;
+          } catch (syncErr) {
+            console.error('Auth sync failed:', syncErr);
           }
+
+          if (authError) {
+            // If sync failed or still can't login, try signUp as fallback (if not already registered)
+            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+              email: dummyEmail,
+              password: password,
+              options: {
+                data: {
+                  role: 'principal'
+                }
+              }
+            });
+
+            if (!signUpError && signUpData.user) {
+              data = { user: signUpData.user, session: signUpData.session };
+              authError = null;
+              
+              // Update the profile with the new user_id if it's different
+              console.log('Updating profile with new user_id:', signUpData.user.id);
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ user_id: signUpData.user.id })
+                .eq('phone', cleanPhone)
+                .eq('role', 'principal');
+              
+              if (updateError) {
+                console.error('Error updating profile with user_id:', updateError);
+              }
+            } else if (signUpError?.message?.includes('already registered')) {
+              // User exists in Auth but password was wrong (since signIn failed)
+              throw new Error('Invalid principal credentials. If you recently reset your password, please wait a moment and try again.');
+            } else {
+              throw authError;
+            }
+          }
+        } else {
+          throw authError;
         }
       }
 
