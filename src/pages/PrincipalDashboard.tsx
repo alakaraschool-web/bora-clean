@@ -1229,7 +1229,7 @@ export const PrincipalDashboard = () => {
           })
         });
 
-        const authResult = await response.json();
+        const authResult = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(authResult.error || 'Failed to create staff account');
 
         const authUserId = authResult.user.id;
@@ -1375,13 +1375,7 @@ export const PrincipalDashboard = () => {
           })
         });
 
-        let authResult;
-        try {
-          authResult = await response.json();
-        } catch (err) {
-          throw new Error('Server returned invalid or empty response');
-        }
-
+        const authResult = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(authResult.error || 'Failed to create student account');
 
         const authUserId = authResult.user.id;
