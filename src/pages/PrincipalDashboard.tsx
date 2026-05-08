@@ -3065,7 +3065,7 @@ export const PrincipalDashboard = () => {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
                   <h3 className="text-xl font-bold text-kenya-black mb-6">Class Performance Comparison</h3>
                   <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <BarChart data={classPerformance}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
@@ -3082,7 +3082,7 @@ export const PrincipalDashboard = () => {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
                     <h3 className="text-xl font-bold text-kenya-black mb-6">Subject Pass Rates (%)</h3>
                     <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <BarChart data={subjectStats} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
                           <XAxis type="number" domain={[0, 100]} axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 10}} />
