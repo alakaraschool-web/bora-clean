@@ -1213,7 +1213,7 @@ export const PrincipalDashboard = () => {
       const password = Math.random().toString(36).slice(-8);
       
       try {
-        const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
+        const dummyEmail = `user.${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
         const response = await fetch('/api/auth/create-user', {
