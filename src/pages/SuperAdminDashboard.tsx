@@ -93,9 +93,6 @@ export const SuperAdminDashboard = () => {
   const [activeExamsCount, setActiveExamsCount] = useState(0);
   const [users, setUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [generatedCreds, setGeneratedCreds] = useState<any>(null);
-  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pending' | 'Suspended'>('All');
-  const [showStoryModal, setShowStoryModal] = useState(false);
 
   const resetSystemData = async () => {
     if (window.confirm('WARNING: This will delete ALL students, exams, and marks across ALL schools. This action cannot be undone. Are you sure?')) {
@@ -159,8 +156,6 @@ export const SuperAdminDashboard = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
-  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
-  const [adminInviteLink, setAdminInviteLink] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -171,40 +166,9 @@ export const SuperAdminDashboard = () => {
     description: '',
     file: null as File | null
   });
-  const [editingUser, setEditingUser] = useState<any>(null);
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [selectedSpecialRole, setSelectedSpecialRole] = useState('');
-
-  const generateAdminInvite = async () => {
-    setIsGeneratingInvite(true);
-    try {
-      const res = await fetch('/api/auth/generate-admin-invite', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setAdminInviteLink(`${window.location.origin}/register-admin?token=${data.token}`);
-    } catch (error: any) {
-      alert('Failed to generate invite: ' + error.message);
-    } finally {
-      setIsGeneratingInvite(false);
-    }
-  };
-
-  const specialRoles = ['Head of Department', 'Year Group Coordinator', 'Exam Officer', 'None'];
-
-  const handleUpdateStaffRole = async () => {
-    if (!editingUser) return;
-    try {
-      const newAssignments = selectedSpecialRole === 'None' ? [] : [selectedSpecialRole];
-      await supabaseService.updateProfile(editingUser.id, { assignments: newAssignments });
-      
-      setUsers(users.map(u => u.id === editingUser.id ? { ...u, assignments: newAssignments } : u));
-      setShowRoleModal(false);
-      addNotification({ title: 'Role Updated', message: `Assigned ${selectedSpecialRole} to ${editingUser.name}`, type: 'success', role: 'super_admin' });
-    } catch (e) {
-      console.error('Update error:', e);
-      alert('Failed to update role');
-    }
-  };
+  const [showStoryModal, setShowStoryModal] = useState(false);
+  const [generatedCreds, setGeneratedCreds] = useState<{ principal: string; teacher: string; pass: string } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pending' | 'Suspended'>('All');
 
   const [examMaterials, setExamMaterials] = useState<ExamMaterial[]>(() => {
     const saved = localStorage.getItem('alakara_exam_materials');
@@ -356,32 +320,58 @@ export const SuperAdminDashboard = () => {
 
       if (schoolData) {
         try {
-          const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
-          const dummyEmail = `principal.${sanitizedPhone}@boraschool.ke`;
-
-          // 1. Create Principal Auth Account and Profile via API
-          const pAuthRes = await fetch('/api/auth/create-user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: dummyEmail,
-              password: creds.pass,
-              role: 'principal',
-              name: `${newSchool.name} Principal`,
-              phone: sanitizedPhone,
-              school_id: schoolData.id
-            })
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          
+          const secondaryClient = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false
+            }
           });
 
-          if (!pAuthRes.ok) {
-            console.error('Principal Auth/Profile Error:', await pAuthRes.text());
+          const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
+          const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
+
+          // 1. Create Principal Auth Account (using Email directly)
+          const { data: pAuthData, error: pAuthError } = await secondaryClient.auth.signUp({
+            email: dummyEmail,
+            password: creds.pass
+          });
+
+          if (pAuthError && pAuthError.message !== 'User already registered') {
+            console.error('Principal Auth Error:', pAuthError);
           }
 
-          // 2. Create default teacher profile (server-side via API route or just manual upsert if teacher doesn't need auth)
-          // Actually, let's also create the teacher via API if needed, 
-          // or at least ensure the profile is created. 
-          // For now, let's keep the existing profile creation for teacher to avoid overcomplicating, 
-          // but call it via an API route if possible, or just insert it if RLS allows.
+          let principalId = pAuthData.user?.id;
+          let principalAuthId = pAuthData.user?.id;
+          if (!principalId) {
+            const { data: existingP } = await supabase.from('profiles').select('id, user_id').eq('phone', sanitizedPhone).eq('role', 'principal').maybeSingle();
+            principalId = existingP?.id || crypto.randomUUID();
+            principalAuthId = existingP?.user_id || null;
+          }
+          
+          // Create principal profile
+          const { error: pError } = await supabase.from('profiles').upsert({
+            id: principalId,
+            user_id: principalAuthId,
+            school_id: schoolData.id,
+            name: `${newSchool.name} Principal`,
+            email: `${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
+            phone: sanitizedPhone,
+            password: creds.pass,
+            must_change_password: true,
+            role: 'principal'
+          });
+
+          if (pError) console.error('Principal Profile Error:', pError);
+
+          // 2. Create Teacher Auth Account (using a derived phone or username if needed, but for now let's just create the profile)
+          // Since we can't have duplicate phones in Auth, and we don't use email, 
+          // we might need a different strategy for the default teacher account if it needs Auth.
+          // For now, we'll just create the profile without an auth link if it's just a placeholder.
           
           const teacherId = crypto.randomUUID();
           
@@ -390,14 +380,16 @@ export const SuperAdminDashboard = () => {
             id: teacherId,
             school_id: schoolData.id,
             name: `${newSchool.name} Staff`,
-            phone: null, 
+            phone: null, // Avoid conflict with principal's phone
             password: creds.pass,
             must_change_password: true,
             role: 'teacher'
           });
 
-          if (tError) {
-            console.error('Teacher Profile Error:', tError);
+          if (tError) console.error('Teacher Profile Error:', tError);
+
+          if (pError || tError) {
+            console.error('Error creating profiles:', pError || tError);
           }
           
           setSchools([school, ...schools]);
@@ -1497,14 +1489,6 @@ export const SuperAdminDashboard = () => {
                       className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20 w-64"
                     />
                   </div>
-                  <Button onClick={generateAdminInvite} className="gap-2 bg-kenya-black hover:bg-black" disabled={isGeneratingInvite}>
-                    {isGeneratingInvite ? 'Generating...' : 'Invite Admin'}
-                  </Button>
-                  {adminInviteLink && (
-                    <div className="text-sm">
-                      Invite Link: <input readOnly value={adminInviteLink} className="border p-1 rounded" />
-                    </div>
-                  )}
                 </div>
               </div>
 

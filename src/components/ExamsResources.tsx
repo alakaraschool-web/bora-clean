@@ -2,7 +2,6 @@ import { motion } from 'motion/react';
 import { FileText, Download, BookOpen, Search, Filter } from 'lucide-react';
 import { Button } from './Button';
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { supabaseService } from '../services/supabaseService';
 
 export const ExamsResources = () => {
@@ -100,10 +99,10 @@ export const ExamsResources = () => {
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{resource.category}</p>
               <h3 className="text-xl font-bold text-kenya-black mb-2">{resource.title}</h3>
               <p className="text-sm text-gray-500 mb-6">{resource.count} available for download.</p>
-              <Link to={`/resources/${resource.category}`} className="text-kenya-green font-bold text-sm flex items-center gap-2 group-hover:gap-3 transition-all">
+              <button className="text-kenya-green font-bold text-sm flex items-center gap-2 group-hover:gap-3 transition-all">
                 Browse Collection
                 <Download className="w-4 h-4" />
-              </Link>
+              </button>
             </motion.div>
           ))}
         </div>

@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { PasswordResetModal } from '../components/PasswordResetModal';
 import { ForcePasswordChangeModal } from '../components/ForcePasswordChangeModal';
-import { supabase, getSessionSafe, safeFetch } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
 export const StudentLogin = () => {
   const [username, setUsername] = useState('');
@@ -21,7 +21,7 @@ export const StudentLogin = () => {
   useEffect(() => {
     // Check if already logged in
     const checkSession = async () => {
-      const session = await getSessionSafe();
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         console.log('Session found, checking profile for user:', session.user.id);
         const { data: profile, error: profileError } = await supabase
@@ -207,14 +207,13 @@ export const StudentLogin = () => {
       if (profile) {
         // User exists in profiles with this password but Auth failed
         // Let's try to sign them up
-        const { data, error: signUpError } = await safeFetch(() => supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: dummyEmail,
           password: password,
           options: { data: { role: 'student', phone: profile.phone } }
-        }));
-        const signUpData = data;
+        });
 
-        if (!signUpError && signUpData && signUpData.user) {
+        if (!signUpError && signUpData.user) {
           // Update profile with new user_id
           console.log('Updating student profile with new user_id:', signUpData.user.id);
           const { error: updateError } = await supabase

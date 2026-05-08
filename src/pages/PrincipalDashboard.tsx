@@ -52,7 +52,6 @@ import {
 import { NotificationBell, addNotification } from '../components/NotificationBell';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
-import { BulkStudentPreviewModal } from '../components/BulkStudentPreviewModal';
 import { Letterhead } from '../components/Letterhead';
 import { 
   BarChart, 
@@ -145,8 +144,6 @@ export const PrincipalDashboard = () => {
 
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
-  const [showBulkUploadPreview, setShowBulkUploadPreview] = useState(false);
-  const [pendingBulkStudents, setPendingBulkStudents] = useState<any[]>([]);
   const [showAddClassModal, setShowAddClassModal] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [selectedEditClass, setSelectedEditClass] = useState('');
@@ -1219,7 +1216,7 @@ export const PrincipalDashboard = () => {
         const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
-        const response = await fetch(`${window.location.origin}/api/auth/create-user`, {
+        const response = await fetch('/api/auth/create-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1365,7 +1362,7 @@ export const PrincipalDashboard = () => {
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account and Profile via Server API
-        const response = await fetch(`${window.location.origin}/api/auth/create-user`, {
+        const response = await fetch('/api/auth/create-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1589,6 +1586,7 @@ export const PrincipalDashboard = () => {
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
+        const newStudents = [...students];
         const studentsToInsert: any[] = [];
 
         data.forEach((row, index) => {
@@ -1614,51 +1612,66 @@ export const PrincipalDashboard = () => {
           studentsToInsert.push(studentData);
         });
 
-        setPendingBulkStudents(studentsToInsert.map(s => ({ 
+        setStudents([...students, ...studentsToInsert.map(s => ({ 
           ...s, 
           id: crypto.randomUUID(),
           adm: s.admission_number // Ensure adm is set for UI consistency
-        })));
-        setShowBulkUploadPreview(true);
-      } catch (error: any) {
-        console.error('Error processing bulk upload:', error);
-        alert('Failed to process file: ' + error.message);
+        }))]);
+        
+        // Sync with Supabase via Server API
+        if (studentsToInsert.length > 0) {
+          try {
+            const response = await fetch('/api/auth/bulk-create-students', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                students: studentsToInsert,
+                school_id: school.id
+              })
+            });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Server error: ${errorText}`);
+          }
+
+          const result = await response.json();
+          if (result.success && result.success.length > 0) {
+            // Fetch updated students list to get real IDs and profiles
+            const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
+            if (data) {
+              setStudents(data.map(s => ({
+                id: s.id,
+                name: s.name,
+                adm: s.admission_number,
+                class: s.class,
+                status: s.status || 'Active',
+                gender: s.gender || 'Male',
+                upi_no: s.upi_no,
+                kpsea_no: s.kpsea_no,
+                dob: s.dob,
+                admission_date: s.admission_date,
+                parent_name: s.parent_name,
+                parent_phone: s.parent_phone,
+                house: s.house,
+                profile_image: s.profile_image || null,
+                password: s.password
+              })));
+            }
+            alert(`Successfully imported ${result.success.length} students! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
+          } else if (result.error) {
+            alert('Bulk import failed: ' + result.error);
+          }
+          } catch (err) {
+            console.error('Error syncing bulk students:', err);
+            alert(`Bulk import failed: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
+          }
+        }
+      } catch (err) {
+        alert('Error parsing Excel file. Please ensure it follows the template format.');
       }
     };
     reader.readAsBinaryString(file);
-  };
-
-  const confirmBulkUpload = async () => {
-    try {
-      const response = await fetch('/api/auth/bulk-create-students', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          students: pendingBulkStudents,
-          school_id: school.id
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to save students');
-      
-      const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
-      if (data) {
-        setStudents(data.map(s => ({
-          ...s,
-          adm: s.admission_number,
-          class: s.class,
-          status: s.status || 'Active',
-          gender: s.gender || 'Male'
-        })));
-      }
-
-      setPendingBulkStudents([]);
-      setShowBulkUploadPreview(false);
-      addNotification({ title: 'Students Saved', message: 'Bulk upload completed successfully.', type: 'success' });
-    } catch (e: any) {
-      console.error(e);
-      addNotification({ title: 'Upload Failed', message: e.message, type: 'error' });
-    }
   };
 
   const handleClassBulkStudentUpload = (e: ChangeEvent<HTMLInputElement>, className: string) => {
@@ -6640,19 +6653,7 @@ export const PrincipalDashboard = () => {
                       )}
                     </div>
                   </div>
-                  {stagedStudents.length > 0 && (
-                    <div className="mt-6 flex justify-end">
-                      <Button 
-                        onClick={() => saveStagedStudents(managingClass.name)}
-                        className="gap-2 bg-kenya-green hover:bg-kenya-green/90"
-                      >
-                        <Save className="w-4 h-4" />
-                        Save {stagedStudents.length} Students
-                      </Button>
-                    </div>
-                  )}
-
-                  <div className="flex gap-4 mt-6">
+                  <div className="flex gap-4">
                     <div className="flex-1 relative">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input 
@@ -6671,12 +6672,10 @@ export const PrincipalDashboard = () => {
                         }}
                       />
                     </div>
+                    <Button onClick={() => { setManagingClass(null); setActiveTab('students'); setShowAddStudentModal(true); }}>
+                      Register New Student
+                    </Button>
                   </div>
-                    <div className="flex justify-end pt-4">
-                      <Button onClick={() => { setManagingClass(null); setActiveTab('students'); setShowAddStudentModal(true); }}>
-                        Register New Student
-                      </Button>
-                    </div>
                   <p className="text-[10px] text-gray-400 mt-2 ml-1 italic">Type name/adm and press Enter to quickly move a student to this class.</p>
                 </div>
 
@@ -6738,12 +6737,6 @@ export const PrincipalDashboard = () => {
             </motion.div>
           </div>
         )}
-        <BulkStudentPreviewModal 
-          isOpen={showBulkUploadPreview} 
-          onClose={() => setShowBulkUploadPreview(false)}
-          students={pendingBulkStudents}
-          onSave={confirmBulkUpload}
-        />
         {/* Subject Champions Modal */}
         {viewingSubjectChampions && (
           <div className="fixed inset-0 bg-kenya-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
@@ -6778,52 +6771,52 @@ export const PrincipalDashboard = () => {
               <div className="p-6 max-h-[60vh] overflow-y-auto">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left min-w-[400px]">
-                    <thead className="text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                      <tr>
-                        <th className="px-4 py-3">Rank</th>
-                        <th className="px-4 py-3">Student</th>
-                        <th className="px-4 py-3">Class</th>
-                        <th className="px-4 py-3 text-right">Score</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {marks
-                        .filter(m => 
-                          m.examId === selectedProcessingExamId && 
-                          m.subject === viewingSubjectChampions &&
-                          (selectedProcessingClass === 'All' || students.find(s => s.id === m.studentId)?.class === selectedProcessingClass)
-                        )
-                        .sort((a, b) => parseFloat(b.total || b.score) - parseFloat(a.total || a.score))
-                        .map((m, idx) => {
-                          const student = students.find(s => s.id === m.studentId);
-                          return (
-                            <tr key={m.id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-4">
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
-                                  idx === 0 ? 'bg-yellow-100 text-yellow-700' : 
-                                  idx === 1 ? 'bg-gray-100 text-gray-600' :
-                                  idx === 2 ? 'bg-orange-100 text-orange-700' : 'text-gray-400'
-                                }`}>
-                                  {idx + 1}
-                                </span>
-                              </td>
-                              <td className="px-4 py-4">
-                                <p className="font-bold text-kenya-black">{student?.name}</p>
-                                <p className="text-[10px] text-gray-400 font-mono">{student?.adm}</p>
-                              </td>
-                              <td className="px-4 py-4 text-sm text-gray-500">{student?.class}</td>
-                              <td className="px-4 py-4 text-right">
-                                <span className="font-black text-kenya-green">{m.total || m.score}%</span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
+                  <thead className="text-[10px] font-black text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                    <tr>
+                      <th className="px-4 py-3">Rank</th>
+                      <th className="px-4 py-3">Student</th>
+                      <th className="px-4 py-3">Class</th>
+                      <th className="px-4 py-3 text-right">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {marks
+                      .filter(m => 
+                        m.examId === selectedProcessingExamId && 
+                        m.subject === viewingSubjectChampions &&
+                        (selectedProcessingClass === 'All' || students.find(s => s.id === m.studentId)?.class === selectedProcessingClass)
+                      )
+                      .sort((a, b) => parseFloat(b.total || b.score) - parseFloat(a.total || a.score))
+                      .map((m, idx) => {
+                        const student = students.find(s => s.id === m.studentId);
+                        return (
+                          <tr key={m.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-4">
+                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                                idx === 0 ? 'bg-yellow-100 text-yellow-700' : 
+                                idx === 1 ? 'bg-gray-100 text-gray-600' :
+                                idx === 2 ? 'bg-orange-100 text-orange-700' : 'text-gray-400'
+                              }`}>
+                                {idx + 1}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <p className="font-bold text-kenya-black">{student?.name}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{student?.adm}</p>
+                            </td>
+                            <td className="px-4 py-4 text-sm text-gray-500">{student?.class}</td>
+                            <td className="px-4 py-4 text-right">
+                              <span className="font-black text-kenya-green">{m.total || m.score}%</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
-            </motion.div>
-          </div>
+            </div>
+          </motion.div>
+        </div>
         )}
       </main>
     </div>

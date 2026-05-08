@@ -15,26 +15,16 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
-  let supabaseAdminClient: any = null;
-  function getSupabaseAdmin() {
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Supabase environment variables missing! VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.');
-    }
-    if (!supabaseAdminClient) {
-      supabaseAdminClient = createClient(supabaseUrl, supabaseServiceKey, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      });
-    }
-    return supabaseAdminClient;
-  }
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-  
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+
   // API Route to verify student login (ADM + Name)
   app.post('/api/auth/student-login-verify', async (req, res) => {
     const { admissionNumber, namePart } = req.body;
@@ -45,7 +35,7 @@ async function startServer() {
 
     try {
       // 1. Find student by admission number
-      const { data: student, error: studentError } = await getSupabaseAdmin()
+      const { data: student, error: studentError } = await supabaseAdmin
         .from('students')
         .select('*')
         .eq('admission_number', admissionNumber)
@@ -66,7 +56,7 @@ async function startServer() {
       }
 
       // 3. Get profile to find the current password and email
-      const { data: profile, error: profileError } = await getSupabaseAdmin()
+      const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .select('email, password, id')
         .eq('student_id', student.id)
@@ -111,13 +101,13 @@ async function startServer() {
     try {
       for (const student of students) {
         const { name, admission_number, class: className, gender, phone } = student;
-        const dummyEmail = `student.${admission_number.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
+        const dummyEmail = `${admission_number.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
         const password = 'password123';
 
         try {
-           console.log('Processing student:', student);
+          console.log('Processing student:', student);
           // 1. Create Auth Account
-          const { data: authData, error: authError } = await getSupabaseAdmin().auth.admin.createUser({
+          const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email: dummyEmail,
             password,
             email_confirm: true,
@@ -127,7 +117,7 @@ async function startServer() {
           let authUserId;
           if (authError) {
             if (authError.message.includes('already registered')) {
-              const { data: users } = await getSupabaseAdmin().auth.admin.listUsers();
+              const { data: users } = await supabaseAdmin.auth.admin.listUsers();
               const existingUser = users?.users.find((u: any) => u.email === dummyEmail);
               if (existingUser) {
                 authUserId = existingUser.id;
@@ -142,7 +132,7 @@ async function startServer() {
           }
 
           // 2. Create Student Record
-          const { data: studentData, error: studentError } = await getSupabaseAdmin().from('students').upsert({
+          const { data: studentData, error: studentError } = await supabaseAdmin.from('students').upsert({
             id: authUserId,
             name,
             admission_number,
@@ -155,7 +145,7 @@ async function startServer() {
           if (studentError) throw studentError;
 
           // 3. Create Profile Record
-          const { error: profileError } = await getSupabaseAdmin().from('profiles').upsert({
+          const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
             id: authUserId,
             user_id: authUserId,
             name,
@@ -185,59 +175,8 @@ async function startServer() {
     }
   });
 
-  // API Route to generate a super admin invite
-  app.post('/api/auth/generate-admin-invite', async (req, res) => {
-    try {
-      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-      
-      const { data, error } = await getSupabaseAdmin().from('admin_invites').insert({
-        token,
-        expires_at: expiresAt.toISOString()
-      }).select().single();
-      
-      if (error) throw error;
-      
-      res.json({ token });
-    } catch (error: any) {
-      console.error('Error generating admin invite:', error);
-      res.status(500).json({ error: error.message || 'Internal server error' });
-    }
-  });
-
-  // API Route to validate and consume a super admin invite
-  app.post('/api/auth/validate-admin-invite', async (req, res) => {
-    const { token } = req.body;
-    try {
-      const { data: invite, error } = await getSupabaseAdmin().from('admin_invites').select('*').eq('token', token).maybeSingle();
-      
-      if (error || !invite || invite.used || new Date(invite.expires_at) < new Date()) {
-        return res.status(400).json({ error: 'Invalid or expired invite token' });
-      }
-      
-      res.json({ valid: true, id: invite.id });
-    } catch (error: any) {
-      console.error('Error validating admin invite:', error);
-      res.status(500).json({ error: error.message || 'Internal server error' });
-    }
-  });
-
-  // API Route to consume a super admin invite
-  app.post('/api/auth/consume-admin-invite', async (req, res) => {
-    const { id } = req.body;
-    try {
-      const { error } = await getSupabaseAdmin().from('admin_invites').update({ used: true }).eq('id', id);
-      if (error) throw error;
-      res.json({ success: true });
-    } catch (error: any) {
-      console.error('Error consuming admin invite:', error);
-      res.status(500).json({ error: error.message || 'Internal server error' });
-    }
-  });
-
   // API Route to create a user using Service Role Key
   app.post('/api/auth/create-user', async (req, res) => {
-    console.log('API /api/auth/create-user hit with body:', req.body);
     const { email, password, role, name, phone, school_id, student_id } = req.body;
 
     if (!email || !password || !role || !name || !school_id) {
@@ -246,7 +185,7 @@ async function startServer() {
 
     try {
       // 1. Create Auth Account
-      const { data: authData, error: authError } = await getSupabaseAdmin().auth.admin.createUser({
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
@@ -257,12 +196,12 @@ async function startServer() {
         // Check if user already exists
         if (authError.message.includes('already registered')) {
           // Find the user
-          const { data: users, error: listError } = await getSupabaseAdmin().auth.admin.listUsers();
+          const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
           if (listError) throw listError;
           const existingUser = users.users.find((u: any) => u.email === email);
           if (existingUser) {
             // Update profile if needed
-            const { error: profileError } = await getSupabaseAdmin().from('profiles').upsert({
+            const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
               id: existingUser.id,
               user_id: existingUser.id,
               name,
@@ -282,7 +221,7 @@ async function startServer() {
       }
 
       // 2. Create Profile Record
-      const { error: profileError } = await getSupabaseAdmin().from('profiles').upsert({
+      const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
         id: authData.user.id,
         user_id: authData.user.id,
         name,
@@ -314,7 +253,7 @@ async function startServer() {
 
     try {
       // 1. Get the user_id from the profiles table
-      const { data: profile, error: profileError } = await getSupabaseAdmin()
+      const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .select('user_id, email, phone')
         .eq('id', profileId)
@@ -327,7 +266,7 @@ async function startServer() {
       if (!profile.user_id) {
         // If no user_id, we can't update Auth. 
         // But we can try to find the user in Auth by email/phone
-        const { data: users, error: listError } = await getSupabaseAdmin().auth.admin.listUsers();
+        const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
         if (listError) throw listError;
 
         const authUser = users.users.find((u: any) => 
@@ -338,14 +277,14 @@ async function startServer() {
 
         if (authUser) {
           // Update Auth password
-          const { error: authUpdateError } = await getSupabaseAdmin().auth.admin.updateUserById(
+          const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
             authUser.id,
             { password: newPassword }
           );
           if (authUpdateError) throw authUpdateError;
 
           // Update profile with user_id
-          await getSupabaseAdmin().from('profiles').update({ user_id: authUser.id }).eq('id', profileId);
+          await supabaseAdmin.from('profiles').update({ user_id: authUser.id }).eq('id', profileId);
           
           return res.json({ success: true, message: 'Auth password updated and synced' });
         }
@@ -354,7 +293,7 @@ async function startServer() {
       }
 
       // 2. Update Auth password directly
-      const { error: authUpdateError } = await getSupabaseAdmin().auth.admin.updateUserById(
+      const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
         profile.user_id,
         { password: newPassword }
       );
