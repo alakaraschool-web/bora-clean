@@ -1358,7 +1358,7 @@ export const PrincipalDashboard = () => {
 
         // Use ADM number to generate a virtual phone number for Auth
         const studentPhone = `+254${newStudent.adm.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
-        const dummyEmail = `${studentPhone.replace('+', '')}@student.boraschool.ke`;
+        const dummyEmail = `user.${studentPhone.replace('+', '')}@student.boraschool.ke`;
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account and Profile via Server API
