@@ -1216,7 +1216,7 @@ export const PrincipalDashboard = () => {
         const dummyEmail = `user.${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
-        const response = await fetch(`${window.location.origin}/api/auth/create-user`, {
+        const response = await fetch('/api/auth/create-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1362,7 +1362,7 @@ export const PrincipalDashboard = () => {
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account and Profile via Server API
-        const response = await fetch(`${window.location.origin}/api/auth/create-user`, {
+        const response = await fetch('/api/auth/create-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3099,7 +3099,7 @@ export const PrincipalDashboard = () => {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
                     <h3 className="text-xl font-bold text-kenya-black mb-6">Gender Performance Comparison</h3>
                     <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                         <PieChart>
                           <Pie
                             data={genderStats}
@@ -4763,7 +4763,7 @@ export const PrincipalDashboard = () => {
                       <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-xl font-bold text-kenya-black mb-6">Subject Performance Averages</h3>
                         <div className="h-80">
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <BarChart data={subjectPerformance}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                               <XAxis dataKey="subject" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
@@ -4781,7 +4781,7 @@ export const PrincipalDashboard = () => {
                       <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-xl font-bold text-kenya-black mb-6">Grade Distribution</h3>
                         <div className="h-80">
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <PieChart>
                               <Pie
                                 data={gradeDistribution}
@@ -4809,7 +4809,7 @@ export const PrincipalDashboard = () => {
                       <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-xl font-bold text-kenya-black mb-6">Performance Range (Top vs Bottom)</h3>
                         <div className="h-80">
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <LineChart data={subjectPerformance}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                               <XAxis dataKey="subject" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
@@ -4828,7 +4828,7 @@ export const PrincipalDashboard = () => {
                       <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-xl font-bold text-kenya-black mb-6">Gender Performance Comparison</h3>
                         <div className="h-80">
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                             <BarChart data={genderPerformance} layout="vertical">
                               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
                               <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} domain={[0, 100]} />
