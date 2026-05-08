@@ -177,13 +177,13 @@ async function startServer() {
 
   // API Route to create a user using Service Role Key
   app.post('/api/auth/create-user', async (req, res) => {
-    const { email, password, role, name, phone, school_id, student_id } = req.body;
-
-    if (!email || !password || !role || !name || !school_id) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
     try {
+      const { email, password, role, name, phone, school_id, student_id } = req.body;
+
+      if (!email || !password || !role || !name || !school_id) {
+        return res.status(400).json({ success: false, error: 'Missing required fields' });
+      }
+
       // 1. Create Auth Account
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
@@ -236,10 +236,10 @@ async function startServer() {
 
       if (profileError) throw profileError;
 
-      res.json({ success: true, user: authData.user });
+      return res.json({ success: true, user: authData.user });
     } catch (error: any) {
       console.error('Server Create User Error:', error);
-      res.status(500).json({ error: error.message || 'Internal server error' });
+      return res.status(500).json({ success: false, error: error.message || 'Internal server error' });
     }
   });
 

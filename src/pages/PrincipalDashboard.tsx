@@ -1375,7 +1375,13 @@ export const PrincipalDashboard = () => {
           })
         });
 
-        const authResult = await response.json();
+        let authResult;
+        try {
+          authResult = await response.json();
+        } catch (err) {
+          throw new Error('Server returned invalid or empty response');
+        }
+
         if (!response.ok) throw new Error(authResult.error || 'Failed to create student account');
 
         const authUserId = authResult.user.id;
