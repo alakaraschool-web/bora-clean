@@ -34,7 +34,7 @@ async function startServer() {
 
 
   // API Route to bulk create students
-  app.post('/api/auth/bulk-create-students', async (req, res) => {
+  app.post('/backend/auth/bulk-create-students', async (req, res) => {
     const { students, school_id } = req.body;
 
     if (!students || !Array.isArray(students) || !school_id) {
@@ -124,7 +124,7 @@ async function startServer() {
   });
 
   // API Route to verify student login (ADM + Name)
-  app.post('/api/auth/student-login-verify', async (req, res) => {
+  app.post('/backend/auth/student-login-verify', async (req, res) => {
     const { admissionNumber, namePart } = req.body;
 
     if (!admissionNumber || !namePart) {
@@ -184,7 +184,7 @@ async function startServer() {
   });
 
   // API Route to create a user using Service Role Key
-  app.post('/api/auth/create-user', async (req, res) => {
+  app.post('/backend/auth/create-user', async (req, res) => {
     try {
       const { email, password, role, name, phone, school_id, student_id } = req.body;
 

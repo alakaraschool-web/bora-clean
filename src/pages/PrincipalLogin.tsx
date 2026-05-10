@@ -103,7 +103,7 @@ export const PrincipalLogin = () => {
           // User exists in profiles but Auth failed (likely password mismatch after reset)
           // Try to sync Auth password via server-side API
           try {
-            const syncResponse = await fetch('/api/auth/reset-password', {
+            const syncResponse = await fetch('/backend/auth/reset-password', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ profileId: profileExists.id, newPassword: password })

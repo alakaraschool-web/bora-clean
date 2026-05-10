@@ -153,7 +153,7 @@ export const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, 
 
       // 2. Update Auth password via server-side API
       try {
-        const response = await fetch('/api/auth/reset-password', {
+        const response = await fetch('/backend/auth/reset-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ profileId: targetProfileId, newPassword })

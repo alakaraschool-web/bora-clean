@@ -626,7 +626,7 @@ export const PrincipalDashboard = () => {
         // 1. Sync new students first if any
         let finalStudents = [...students];
         if (stagedNewStudents.length > 0) {
-          const res = await fetch('/api/auth/bulk-create-students', {
+          const res = await fetch('/backend/auth/bulk-create-students', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1606,7 +1606,7 @@ export const PrincipalDashboard = () => {
         // Sync with Supabase via Server API
         if (studentsToInsert.length > 0) {
           try {
-            const response = await fetch('/api/auth/bulk-create-students', {
+            const response = await fetch('/backend/auth/bulk-create-students', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
