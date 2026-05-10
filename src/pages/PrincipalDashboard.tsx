@@ -90,7 +90,7 @@ export const PrincipalDashboard = () => {
   const [isSuspended, setIsSuspended] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [daysToExpiry, setDaysToExpiry] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'academic' | 'settings' | 'classes' | 'users' | 'messaging' | 'resources'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'students' | 'academic' | 'settings' | 'classes' | 'users' | 'messaging' | 'resources'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [managingClass, setManagingClass] = useState<any>(null);
   const [academicSubTab, setAcademicSubTab] = useState<'overview' | 'create-exam' | 'learning-area' | 'grading' | 'analysis' | 'reports' | 'results-processing' | 'academic-settings' | 'merit-list' | 'marks-entry'>('overview');
@@ -116,6 +116,8 @@ export const PrincipalDashboard = () => {
   const [stagedMarks, setStagedMarks] = useState<any[] | null>(null);
   const [stagedNewStudents, setStagedNewStudents] = useState<any[]>([]);
 
+  const [students, setStudents] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
   const [marks, setMarks] = useState<any[]>([]);
@@ -316,6 +318,49 @@ export const PrincipalDashboard = () => {
             name: s.name,
             classId: s.class_id,
             schoolId: school.id // We know it's this school
+          })));
+        }
+
+        // Fetch Students
+        const { data: studentsData } = await supabase
+          .from('students')
+          .select('*')
+          .eq('school_id', school.id);
+        if (studentsData) {
+          setStudents(studentsData.map(s => ({
+            id: s.id,
+            name: s.name,
+            adm: s.admission_number,
+            class: s.class,
+            streamId: s.stream || '',
+            status: s.status || 'Active',
+            gender: s.gender || 'Male',
+            profile_image: s.profile_image || null,
+            password: s.password,
+            upi_no: s.upi_no || '',
+            kpsea_no: s.kpsea_no || '',
+            dob: s.dob || '',
+            admission_date: s.admission_date || '',
+            parent_name: s.parent_name || '',
+            parent_phone: s.parent_phone || '',
+            house: s.house || ''
+          })));
+        }
+
+        // Fetch Staff (Profiles)
+        const { data: staffData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('school_id', school.id);
+        if (staffData) {
+          setStaff(staffData.map(p => ({
+            id: p.id,
+            name: p.name,
+            email: p.email,
+            role: p.role.charAt(0).toUpperCase() + p.role.slice(1),
+            status: 'Active',
+            assignments: p.assignments || [],
+            password: p.password
           })));
         }
 
@@ -2736,6 +2781,14 @@ export const PrincipalDashboard = () => {
             >
               <LayoutDashboard className="w-5 h-5" />
               Dashboard
+            </button>
+            <button 
+              onClick={() => { setActiveTab('staff'); setIsSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'staff' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`} 
+              disabled={isSuspended}
+            >
+              <Users className="w-5 h-5" />
+              Staff Management
             </button>
             <button 
               onClick={() => { setActiveTab('students'); setIsSidebarOpen(false); }}
