@@ -14,22 +14,6 @@ export const LoginChoice = () => {
       hoverColor: 'hover:bg-gray-800',
     },
     {
-      title: 'Teacher Portal',
-      description: 'Manage classes, create exams, grade papers, and track student progress.',
-      icon: BookOpen,
-      path: '/teacher-login',
-      color: 'bg-kenya-green',
-      hoverColor: 'hover:bg-green-700',
-    },
-    {
-      title: 'Student Portal',
-      description: 'Access exams, view results, download resources, and track your learning.',
-      icon: Users,
-      path: '/student-login',
-      color: 'bg-kenya-red',
-      hoverColor: 'hover:bg-red-700',
-    },
-    {
       title: 'Register School',
       description: 'New school? Register your institution to start using Bora School KE today.',
       icon: Building2,

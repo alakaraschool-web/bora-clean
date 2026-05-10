@@ -90,7 +90,7 @@ export const PrincipalDashboard = () => {
   const [isSuspended, setIsSuspended] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [daysToExpiry, setDaysToExpiry] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'staff' | 'students' | 'academic' | 'settings' | 'classes' | 'users' | 'messaging' | 'resources'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'academic' | 'settings' | 'classes' | 'users' | 'messaging' | 'resources'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [managingClass, setManagingClass] = useState<any>(null);
   const [academicSubTab, setAcademicSubTab] = useState<'overview' | 'create-exam' | 'learning-area' | 'grading' | 'analysis' | 'reports' | 'results-processing' | 'academic-settings' | 'merit-list' | 'marks-entry'>('overview');
@@ -116,8 +116,6 @@ export const PrincipalDashboard = () => {
   const [stagedMarks, setStagedMarks] = useState<any[] | null>(null);
   const [stagedNewStudents, setStagedNewStudents] = useState<any[]>([]);
 
-  const [students, setStudents] = useState<any[]>([]);
-  const [staff, setStaff] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
   const [marks, setMarks] = useState<any[]>([]);
@@ -142,8 +140,6 @@ export const PrincipalDashboard = () => {
     coreSubjects: ['Mathematics', 'English', 'Kiswahili']
   });
 
-  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
-  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showAddClassModal, setShowAddClassModal] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [selectedEditClass, setSelectedEditClass] = useState('');
@@ -152,22 +148,6 @@ export const PrincipalDashboard = () => {
   const [editExamConfig, setEditExamConfig] = useState({ weighting: 100, maxMarks: 100 });
   const [showEditConfirmation, setShowEditConfirmation] = useState(false);
 
-  const [newStudent, setNewStudent] = useState({ 
-    name: '', 
-    adm: '', 
-    class: 'Form 1', 
-    streamId: '', 
-    gender: 'Male', 
-    profile_image: null as string | null,
-    upi_no: '',
-    kpsea_no: '',
-    dob: '',
-    admission_date: '',
-    parent_name: '',
-    parent_phone: '',
-    house: '',
-    status: 'Active'
-  });
   const [editingStudent, setEditingStudent] = useState<any>(null);
   const [newClass, setNewClass] = useState({ 
     name: '', 
@@ -220,38 +200,12 @@ export const PrincipalDashboard = () => {
     showRank: true
   });
 
-  const [newStaff, setNewStaff] = useState({ 
-    name: '', 
-    email: '', 
-    phone: '',
-    role: 'Teacher', 
-    assignments: [] as { classId: string, streamId: string, subject: string }[] 
-  });
-  const [editingStaff, setEditingStaff] = useState<any>(null);
-  const [generatedStaffCreds, setGeneratedStaffCreds] = useState<{name: string, username: string, password: string} | null>(null);
-
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [logs, setLogs] = useState<any[]>(() => {
     const saved = localStorage.getItem('alakara_audit_trail');
     return saved ? JSON.parse(saved) : [];
   });
   const [meritListSortBy, setMeritListSortBy] = useState<'total' | 'average' | 'position' | 'name' | 'gender' | 'stream'>('total');
-
-  // Auto-save drafts
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const draft = {
-        newExam,
-        newStaff,
-        schoolSettings,
-        newClass,
-        newStudent
-      };
-      localStorage.setItem('alakara_config_draft', JSON.stringify(draft));
-      setHasUnsavedChanges(true);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [newExam, newStaff, schoolSettings, newClass, newStudent]);
 
   // Load drafts on mount
   useEffect(() => {
@@ -260,10 +214,8 @@ export const PrincipalDashboard = () => {
       const draft = JSON.parse(savedDraft);
       // Only set if they are not empty to avoid overwriting initial state with empty drafts
       if (draft.newExam.title) setNewExam(draft.newExam);
-      if (draft.newStaff.name) setNewStaff(draft.newStaff);
       if (draft.schoolSettings.name) setSchoolSettings(draft.schoolSettings);
       if (draft.newClass.name) setNewClass(draft.newClass);
-      if (draft.newStudent.name) setNewStudent(draft.newStudent);
     }
     // Reset unsaved changes after initial load
     setTimeout(() => setHasUnsavedChanges(false), 1000);
@@ -353,32 +305,6 @@ export const PrincipalDashboard = () => {
 
     const loadAllData = async () => {
       try {
-        // Fetch Students
-        const { data: studentsData } = await supabase
-          .from('students')
-          .select('*')
-          .eq('school_id', school.id);
-        if (studentsData) {
-          setStudents(studentsData.map(s => ({
-            id: s.id,
-            name: s.name,
-            adm: s.admission_number,
-            class: s.class,
-            streamId: s.stream || '',
-            status: s.status || 'Active',
-            gender: s.gender || 'Male',
-            profile_image: s.profile_image || null,
-            password: s.password,
-            upi_no: s.upi_no || '',
-            kpsea_no: s.kpsea_no || '',
-            dob: s.dob || '',
-            admission_date: s.admission_date || '',
-            parent_name: s.parent_name || '',
-            parent_phone: s.parent_phone || '',
-            house: s.house || ''
-          })));
-        }
-
         // Fetch Streams
         const { data: streamsData } = await supabase
           .from('streams')
@@ -390,23 +316,6 @@ export const PrincipalDashboard = () => {
             name: s.name,
             classId: s.class_id,
             schoolId: school.id // We know it's this school
-          })));
-        }
-
-        // Fetch Staff (Profiles)
-        const { data: staffData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('school_id', school.id);
-        if (staffData) {
-          setStaff(staffData.map(p => ({
-            id: p.id,
-            name: p.name,
-            email: p.email,
-            role: p.role.charAt(0).toUpperCase() + p.role.slice(1),
-            status: 'Active',
-            assignments: p.assignments || [],
-            password: p.password
           })));
         }
 
@@ -1216,6 +1125,7 @@ export const PrincipalDashboard = () => {
         const dummyEmail = `user.${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
+        console.log('Fetching URL:', '/api/auth/create-user');
         const response = await fetch('/api/auth/create-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1362,6 +1272,7 @@ export const PrincipalDashboard = () => {
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account and Profile via Server API
+        console.log('Fetching URL:', '/api/auth/create-user');
         const response = await fetch('/api/auth/create-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2825,14 +2736,6 @@ export const PrincipalDashboard = () => {
             >
               <LayoutDashboard className="w-5 h-5" />
               Dashboard
-            </button>
-            <button 
-              onClick={() => { setActiveTab('staff'); setIsSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${isSuspended ? 'opacity-50 cursor-not-allowed' : activeTab === 'staff' ? 'bg-kenya-green text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`} 
-              disabled={isSuspended}
-            >
-              <Users className="w-5 h-5" />
-              Staff Management
             </button>
             <button 
               onClick={() => { setActiveTab('students'); setIsSidebarOpen(false); }}
