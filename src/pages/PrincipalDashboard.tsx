@@ -116,11 +116,11 @@ export const PrincipalDashboard = () => {
   const [stagedMarks, setStagedMarks] = useState<any[] | null>(null);
   const [stagedNewStudents, setStagedNewStudents] = useState<any[]>([]);
 
-  const [students, setStudents] = useState<any[]>([]);
-  const [staff, setStaff] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
   const [marks, setMarks] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
   const [schoolSettings, setSchoolSettings] = useState<any>({
     name: '',
     motto: '',
@@ -143,6 +143,8 @@ export const PrincipalDashboard = () => {
   });
 
   const [showAddClassModal, setShowAddClassModal] = useState(false);
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [selectedEditClass, setSelectedEditClass] = useState('');
   const [selectedEditSubject, setSelectedEditSubject] = useState('');
@@ -150,7 +152,34 @@ export const PrincipalDashboard = () => {
   const [editExamConfig, setEditExamConfig] = useState({ weighting: 100, maxMarks: 100 });
   const [showEditConfirmation, setShowEditConfirmation] = useState(false);
 
+  const [newStudent, setNewStudent] = useState({ 
+    name: '', 
+    adm: '', 
+    class: 'Form 1', 
+    streamId: '', 
+    gender: 'Male', 
+    profile_image: null as string | null,
+    upi_no: '',
+    kpsea_no: '',
+    dob: '',
+    admission_date: '',
+    parent_name: '',
+    parent_phone: '',
+    house: '',
+    status: 'Active'
+  });
   const [editingStudent, setEditingStudent] = useState<any>(null);
+
+  const [newStaff, setNewStaff] = useState({ 
+    name: '', 
+    email: '', 
+    phone: '',
+    role: 'Teacher', 
+    assignments: [] as { classId: string, streamId: string, subject: string }[] 
+  });
+  const [editingStaff, setEditingStaff] = useState<any>(null);
+  const [generatedStaffCreds, setGeneratedStaffCreds] = useState<{name: string, username: string, password: string} | null>(null);
+
   const [newClass, setNewClass] = useState({ 
     name: '', 
     teacherId: '', 
@@ -347,6 +376,22 @@ export const PrincipalDashboard = () => {
           })));
         }
 
+        // Fetch Classes
+        const { data: classesData } = await supabase
+          .from('classes')
+          .select('*')
+          .eq('school_id', school.id);
+        if (classesData) {
+          setClasses(classesData.map(c => ({
+            id: c.id,
+            name: c.name,
+            teacherId: c.teacher_id,
+            capacity: c.capacity,
+            level: 'Primary',
+            category: 'Regular'
+          })));
+        }
+
         // Fetch Staff (Profiles)
         const { data: staffData } = await supabase
           .from('profiles')
@@ -361,22 +406,6 @@ export const PrincipalDashboard = () => {
             status: 'Active',
             assignments: p.assignments || [],
             password: p.password
-          })));
-        }
-
-        // Fetch Classes
-        const { data: classesData } = await supabase
-          .from('classes')
-          .select('*')
-          .eq('school_id', school.id);
-        if (classesData) {
-          setClasses(classesData.map(c => ({
-            id: c.id,
-            name: c.name,
-            teacherId: c.teacher_id,
-            capacity: c.capacity,
-            level: 'Primary',
-            category: 'Regular'
           })));
         }
 
