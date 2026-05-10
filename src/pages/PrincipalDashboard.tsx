@@ -116,11 +116,11 @@ export const PrincipalDashboard = () => {
   const [stagedMarks, setStagedMarks] = useState<any[] | null>(null);
   const [stagedNewStudents, setStagedNewStudents] = useState<any[]>([]);
 
+  const [students, setStudents] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
   const [marks, setMarks] = useState<any[]>([]);
-  const [students, setStudents] = useState<any[]>([]);
-  const [staff, setStaff] = useState<any[]>([]);
   const [schoolSettings, setSchoolSettings] = useState<any>({
     name: '',
     motto: '',
@@ -142,9 +142,9 @@ export const PrincipalDashboard = () => {
     coreSubjects: ['Mathematics', 'English', 'Kiswahili']
   });
 
-  const [showAddClassModal, setShowAddClassModal] = useState(false);
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showAddClassModal, setShowAddClassModal] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [selectedEditClass, setSelectedEditClass] = useState('');
   const [selectedEditSubject, setSelectedEditSubject] = useState('');
@@ -169,17 +169,6 @@ export const PrincipalDashboard = () => {
     status: 'Active'
   });
   const [editingStudent, setEditingStudent] = useState<any>(null);
-
-  const [newStaff, setNewStaff] = useState({ 
-    name: '', 
-    email: '', 
-    phone: '',
-    role: 'Teacher', 
-    assignments: [] as { classId: string, streamId: string, subject: string }[] 
-  });
-  const [editingStaff, setEditingStaff] = useState<any>(null);
-  const [generatedStaffCreds, setGeneratedStaffCreds] = useState<{name: string, username: string, password: string} | null>(null);
-
   const [newClass, setNewClass] = useState({ 
     name: '', 
     teacherId: '', 
@@ -231,12 +220,38 @@ export const PrincipalDashboard = () => {
     showRank: true
   });
 
+  const [newStaff, setNewStaff] = useState({ 
+    name: '', 
+    email: '', 
+    phone: '',
+    role: 'Teacher', 
+    assignments: [] as { classId: string, streamId: string, subject: string }[] 
+  });
+  const [editingStaff, setEditingStaff] = useState<any>(null);
+  const [generatedStaffCreds, setGeneratedStaffCreds] = useState<{name: string, username: string, password: string} | null>(null);
+
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [logs, setLogs] = useState<any[]>(() => {
     const saved = localStorage.getItem('alakara_audit_trail');
     return saved ? JSON.parse(saved) : [];
   });
   const [meritListSortBy, setMeritListSortBy] = useState<'total' | 'average' | 'position' | 'name' | 'gender' | 'stream'>('total');
+
+  // Auto-save drafts
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const draft = {
+        newExam,
+        newStaff,
+        schoolSettings,
+        newClass,
+        newStudent
+      };
+      localStorage.setItem('alakara_config_draft', JSON.stringify(draft));
+      setHasUnsavedChanges(true);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [newExam, newStaff, schoolSettings, newClass, newStudent]);
 
   // Load drafts on mount
   useEffect(() => {
@@ -245,8 +260,10 @@ export const PrincipalDashboard = () => {
       const draft = JSON.parse(savedDraft);
       // Only set if they are not empty to avoid overwriting initial state with empty drafts
       if (draft.newExam.title) setNewExam(draft.newExam);
+      if (draft.newStaff.name) setNewStaff(draft.newStaff);
       if (draft.schoolSettings.name) setSchoolSettings(draft.schoolSettings);
       if (draft.newClass.name) setNewClass(draft.newClass);
+      if (draft.newStudent.name) setNewStudent(draft.newStudent);
     }
     // Reset unsaved changes after initial load
     setTimeout(() => setHasUnsavedChanges(false), 1000);
@@ -336,20 +353,6 @@ export const PrincipalDashboard = () => {
 
     const loadAllData = async () => {
       try {
-        // Fetch Streams
-        const { data: streamsData } = await supabase
-          .from('streams')
-          .select('*, classes!inner(school_id)')
-          .eq('classes.school_id', school.id);
-        if (streamsData) {
-          setStreams(streamsData.map(s => ({
-            id: s.id,
-            name: s.name,
-            classId: s.class_id,
-            schoolId: school.id // We know it's this school
-          })));
-        }
-
         // Fetch Students
         const { data: studentsData } = await supabase
           .from('students')
@@ -376,19 +379,17 @@ export const PrincipalDashboard = () => {
           })));
         }
 
-        // Fetch Classes
-        const { data: classesData } = await supabase
-          .from('classes')
-          .select('*')
-          .eq('school_id', school.id);
-        if (classesData) {
-          setClasses(classesData.map(c => ({
-            id: c.id,
-            name: c.name,
-            teacherId: c.teacher_id,
-            capacity: c.capacity,
-            level: 'Primary',
-            category: 'Regular'
+        // Fetch Streams
+        const { data: streamsData } = await supabase
+          .from('streams')
+          .select('*, classes!inner(school_id)')
+          .eq('classes.school_id', school.id);
+        if (streamsData) {
+          setStreams(streamsData.map(s => ({
+            id: s.id,
+            name: s.name,
+            classId: s.class_id,
+            schoolId: school.id // We know it's this school
           })));
         }
 
@@ -406,6 +407,22 @@ export const PrincipalDashboard = () => {
             status: 'Active',
             assignments: p.assignments || [],
             password: p.password
+          })));
+        }
+
+        // Fetch Classes
+        const { data: classesData } = await supabase
+          .from('classes')
+          .select('*')
+          .eq('school_id', school.id);
+        if (classesData) {
+          setClasses(classesData.map(c => ({
+            id: c.id,
+            name: c.name,
+            teacherId: c.teacher_id,
+            capacity: c.capacity,
+            level: 'Primary',
+            category: 'Regular'
           })));
         }
 
@@ -626,7 +643,7 @@ export const PrincipalDashboard = () => {
         // 1. Sync new students first if any
         let finalStudents = [...students];
         if (stagedNewStudents.length > 0) {
-          const res = await fetch('/backend/auth/bulk-create-students', {
+          const res = await fetch('/api/auth/bulk-create-students', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1606,7 +1623,7 @@ export const PrincipalDashboard = () => {
         // Sync with Supabase via Server API
         if (studentsToInsert.length > 0) {
           try {
-            const response = await fetch('/backend/auth/bulk-create-students', {
+            const response = await fetch('/api/auth/bulk-create-students', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
