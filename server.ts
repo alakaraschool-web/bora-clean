@@ -184,12 +184,15 @@ async function startServer() {
   app.post('/api/auth/create-user', async (req, res) => {
     try {
       const { email, password, role, name, phone, school_id, student_id } = req.body;
+      console.log('API create-user request body:', req.body);
 
       if (!email || !password || !role || !name || !school_id) {
+        console.error('API create-user missing fields:', { email, password, role, name, school_id });
         return res.status(400).json({ success: false, error: 'Missing required fields' });
       }
 
       // 1. Create Auth Account
+      console.log('Attempting to create user with email:', email);
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
@@ -198,7 +201,7 @@ async function startServer() {
       });
 
       if (authError) {
-        // Check if user already exists
+        console.error('Supabase Auth error:', authError);
         if (authError.message.includes('already registered')) {
           // Find the user
           const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
