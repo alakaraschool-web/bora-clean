@@ -12,8 +12,9 @@ const isValidUrl = (url: string) => {
 };
 
 if (!isValidUrl(supabaseUrl) || !supabaseAnonKey) {
-  console.warn('Supabase credentials missing or invalid. Please check your environment variables.');
+  console.error('Supabase credentials missing or invalid:', { supabaseUrl, supabaseAnonKeyPresent: !!supabaseAnonKey });
 }
+console.log('Initializing Supabase client with URL:', supabaseUrl);
 
 export const supabase = (isValidUrl(supabaseUrl) && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey)

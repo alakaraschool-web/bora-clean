@@ -91,7 +91,7 @@ export const StudentLogin = () => {
       const isAdm = sanitizedInput.includes('-') || sanitizedInput.length > 5;
       if (isAdm && !isPhone) {
         try {
-          const verifyResponse = await fetch('/api/auth/student-login-verify', {
+          const verifyResponse = await fetch(window.location.origin + '/api/auth/student-login-verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

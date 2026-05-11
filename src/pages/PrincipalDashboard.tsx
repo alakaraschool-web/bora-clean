@@ -648,7 +648,7 @@ export const PrincipalDashboard = () => {
         // 1. Sync new students first if any
         let finalStudents = [...students];
         if (stagedNewStudents.length > 0) {
-          const res = await fetch('/api/auth/bulk-create-students', {
+          const res = await fetch(window.location.origin + '/api/auth/bulk-create-students', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1221,7 +1221,7 @@ export const PrincipalDashboard = () => {
         const dummyEmail = `user${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
-        const apiUrl = '/api/auth/create-user';
+        const apiUrl = window.location.origin + '/api/auth/create-user';
         console.log('Fetching URL:', apiUrl);
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -1372,7 +1372,7 @@ export const PrincipalDashboard = () => {
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account and Profile via Server API
-        const apiUrl = '/api/auth/create-user';
+        const apiUrl = window.location.origin + '/api/auth/create-user';
         console.log('Fetching URL:', apiUrl);
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -1633,7 +1633,7 @@ export const PrincipalDashboard = () => {
         // Sync with Supabase via Server API
         if (studentsToInsert.length > 0) {
           try {
-            const response = await fetch('/api/auth/bulk-create-students', {
+            const response = await fetch(window.location.origin + '/api/auth/bulk-create-students', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -1747,7 +1747,7 @@ export const PrincipalDashboard = () => {
 
     try {
       console.log('Saving students:', stagedStudents);
-      const response = await fetch('/api/auth/bulk-create-students', {
+      const response = await fetch(window.location.origin + '/api/auth/bulk-create-students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
