@@ -16,7 +16,7 @@ export const CTA = () => {
               Transform Your School Examination Process Today
             </h2>
             <p className="text-gray-300 text-lg mb-10 leading-relaxed">
-              Join 500+ Kenyan schools that have already automated their exams with Alakara. Transform your institution today.
+              Join 500+ Kenyan schools that have already automated their exams with CBC EXAMINATION ANALYSER. Transform your institution today.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link to="/register-school">

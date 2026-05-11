@@ -35,7 +35,7 @@ export const HowItWorks = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center mb-20">
           <h2 className="text-kenya-green font-semibold tracking-wide uppercase text-sm mb-3">Process</h2>
-          <p className="text-4xl font-bold text-kenya-black mb-4">How Alakara KE Works</p>
+          <p className="text-4xl font-bold text-kenya-black mb-4">How CBC EXAMINATION ANALYSER Works</p>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             A seamless workflow from exam creation to result publishing in five simple steps.
           </p>

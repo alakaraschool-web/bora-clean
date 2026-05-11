@@ -95,7 +95,6 @@ export const PrincipalDashboard = () => {
   const [managingClass, setManagingClass] = useState<any>(null);
   const [academicSubTab, setAcademicSubTab] = useState<'overview' | 'create-exam' | 'learning-area' | 'grading' | 'analysis' | 'reports' | 'results-processing' | 'academic-settings' | 'merit-list' | 'marks-entry'>('overview');
   const [messages, setMessages] = useState<any[]>([]);
-  const [stagedStudents, setStagedStudents] = useState<any[]>([]);
   const [examMaterials, setExamMaterials] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState({ content: '', receiverId: '', type: 'direct' as 'direct' | 'broadcast', targetRole: 'teacher' });
   const [isUploadingMaterial, setIsUploadingMaterial] = useState(false);
@@ -114,7 +113,6 @@ export const PrincipalDashboard = () => {
   
   const [pendingMarks, setPendingMarks] = useState<{ [key: string]: string }>({});
   const [stagedMarks, setStagedMarks] = useState<any[] | null>(null);
-  const [stagedNewStudents, setStagedNewStudents] = useState<any[]>([]);
 
   const [students, setStudents] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
@@ -556,7 +554,6 @@ export const PrincipalDashboard = () => {
       });
 
       const newMarks = [...marks];
-      const newStudentsToStage: any[] = [];
       const examId = selectedProcessingExamId;
       
       if (!examId) {
@@ -565,28 +562,9 @@ export const PrincipalDashboard = () => {
       }
 
       data.slice(1).forEach((row) => {
-        const admNo = String(row[0] || '').trim();
-        if (!admNo) return; // Skip empty rows
-
-        let student = students.find(s => s.adm === admNo);
+        const admNo = String(row[0]).trim();
+        const student = students.find(s => s.adm === admNo);
         
-        // If student not found, allow adding them if they have a name
-        if (!student && row[1]) {
-          const studentName = String(row[1]).trim();
-          const newStudentData = {
-            id: crypto.randomUUID(),
-            name: studentName,
-            admission_number: admNo,
-            adm: admNo,
-            class: selectedProcessingClass !== 'All' ? selectedProcessingClass : 'Form 1',
-            status: 'Active',
-            gender: 'Male', // Default
-            school_id: school.id
-          };
-          newStudentsToStage.push(newStudentData);
-          student = newStudentData;
-        }
-
         if (student) {
           Object.entries(subjectIndices).forEach(([subject, idx]) => {
             let score = parseFloat(String(row[idx]));
@@ -619,79 +597,36 @@ export const PrincipalDashboard = () => {
       });
 
       setStagedMarks(newMarks);
-      setStagedNewStudents(newStudentsToStage);
-      alert(`Bulk marks processed. ${newStudentsToStage.length > 0 ? `${newStudentsToStage.length} new students identified.` : ''} Please click "Save Changes" to finalize.`);
+      alert('Bulk marks processed. Please click "Save Changes" to finalize.');
     };
     reader.readAsBinaryString(file);
   };
 
   const saveStagedMarks = async () => {
     if (stagedMarks) {
-      setIsLoading(true);
       try {
         const examId = selectedProcessingExamId;
-        
-        // 1. Sync new students first if any
-        let finalStudents = [...students];
-        if (stagedNewStudents.length > 0) {
-          const res = await fetch('/api/auth/bulk-create-students', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              students: stagedNewStudents,
-              school_id: school.id
-            })
-          });
-          const result = await res.json();
-          if (result.success) {
-            // Refresh students to get real IDs
-            const { data: refreshedStudents } = await supabase
-              .from('students')
-              .select('*')
-              .eq('school_id', school.id);
-            if (refreshedStudents) {
-              const mapped = refreshedStudents.map(s => ({
-                id: s.id,
-                name: s.name,
-                adm: s.admission_number,
-                class: s.class,
-                status: s.status || 'Active',
-                gender: s.gender || 'Male'
-              }));
-              setStudents(mapped);
-              finalStudents = mapped;
-            }
-          }
-        }
-
-        // 2. Map staged marks to real student IDs (in case they were new)
         const supabaseMarks = stagedMarks
           .filter(m => m.examId === examId)
-          .map(m => {
-            // If studentId was a UUID from local staging, find the real ID by ADM
-            const student = finalStudents.find(s => s.id === m.studentId || s.adm === stagedNewStudents.find(ns => ns.id === m.studentId)?.adm);
-            return {
-              exam_id: examId,
-              student_id: student?.id || m.studentId,
-              subject: m.subject,
-              score: parseFloat(String(m.score)),
-              created_at: new Date().toISOString()
-            };
-          })
-          .filter(m => m.student_id); // Ensure we have a valid student ID
+          .map(m => ({
+            exam_id: examId,
+            student_id: m.studentId,
+            subject: m.subject,
+            score: parseFloat(String(m.score)),
+            created_at: new Date().toISOString()
+          }));
 
         const { error } = await supabase.from('marks').upsert(supabaseMarks, { onConflict: 'exam_id,student_id,subject' });
         if (error) throw error;
 
         setMarks(stagedMarks);
         setStagedMarks(null);
-        setStagedNewStudents([]);
         alert('Bulk marks saved and synced successfully to Supabase!');
-      } catch (error: any) {
+      } catch (error) {
         console.error('Error syncing bulk marks:', error);
-        alert('Failed to sync marks: ' + error.message);
-      } finally {
-        setIsLoading(false);
+        alert('Failed to sync marks to Supabase. Local state updated.');
+        setMarks(stagedMarks);
+        setStagedMarks(null);
       }
     }
   };
@@ -1591,11 +1526,7 @@ export const PrincipalDashboard = () => {
           studentsToInsert.push(studentData);
         });
 
-        setStudents([...students, ...studentsToInsert.map(s => ({ 
-          ...s, 
-          id: crypto.randomUUID(),
-          adm: s.admission_number // Ensure adm is set for UI consistency
-        }))]);
+        setStudents([...students, ...studentsToInsert.map(s => ({ ...s, id: crypto.randomUUID() }))]);
         
         // Sync with Supabase via Server API
         if (studentsToInsert.length > 0) {
@@ -1685,68 +1616,62 @@ export const PrincipalDashboard = () => {
             school_id: school.id
           };
 
-          newStudents.push({
-            ...studentData,
-            id: crypto.randomUUID(),
-            adm: studentData.admission_number
-          });
+          newStudents.push(studentData);
           studentsToInsert.push(studentData);
         });
 
         setStudents(newStudents);
-        setStagedStudents(prev => [...prev, ...studentsToInsert]);
-        alert(`Successfully staged ${studentsToInsert.length} students. Click Save to confirm import.`);
+
+        // Sync with Supabase via Server API
+        if (studentsToInsert.length > 0) {
+          fetch('/api/auth/bulk-create-students', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              students: studentsToInsert,
+              school_id: school.id
+            })
+          })
+          .then(res => res.json())
+          .then(result => {
+            if (result.success && result.success.length > 0) {
+              // Fetch updated students list to get real IDs and profiles
+              supabase.from('students').select('*').eq('school_id', school.id).then(({ data }) => {
+                if (data) {
+                  setStudents(data.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    adm: s.admission_number,
+                    class: s.class,
+                    status: s.status || 'Active',
+                    gender: s.gender || 'Male',
+                    upi_no: s.upi_no,
+                    kpsea_no: s.kpsea_no,
+                    dob: s.dob,
+                    admission_date: s.admission_date,
+                    parent_name: s.parent_name,
+                    parent_phone: s.parent_phone,
+                    house: s.house,
+                    profile_image: s.profile_image || null,
+                    password: s.password
+                  })));
+                }
+              });
+              alert(`Successfully imported ${result.success.length} students to ${className}! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
+            } else if (result.error) {
+              alert('Bulk import failed: ' + result.error);
+            }
+          })
+          .catch(err => {
+            console.error('Error syncing bulk students to class:', err);
+            alert('Bulk import failed. Please check your connection.');
+          });
+        }
       } catch (err) {
         alert('Error parsing Excel file. Please ensure it follows the format: Name, Admission No');
       }
     };
     reader.readAsBinaryString(file);
-  };
-
-  const saveStagedStudents = async (className: string) => {
-    if (stagedStudents.length === 0) return;
-
-    try {
-      const result = await fetch('/api/auth/bulk-create-students', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          students: stagedStudents,
-          school_id: school.id
-        })
-      }).then(res => res.json());
-
-      if (result.success && result.success.length > 0) {
-        // Fetch updated students list to get real IDs and profiles
-        const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
-        if (data) {
-          setStudents(data.map(s => ({
-            id: s.id,
-            name: s.name,
-            adm: s.admission_number,
-            class: s.class,
-            status: s.status || 'Active',
-            gender: s.gender || 'Male',
-            upi_no: s.upi_no,
-            kpsea_no: s.kpsea_no,
-            dob: s.dob,
-            admission_date: s.admission_date,
-            parent_name: s.parent_name,
-            parent_phone: s.parent_phone,
-            house: s.house,
-            profile_image: s.profile_image || null,
-            password: s.password
-          })));
-        }
-        setStagedStudents([]);
-        alert(`Successfully imported ${result.success.length} students to ${className}! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
-      } else if (result.error) {
-        alert('Bulk import failed: ' + result.error);
-      }
-    } catch (err) {
-      console.error('Error syncing bulk students to class:', err);
-      alert('Bulk import failed. Please check your connection.');
-    }
   };
 
   const removeStudent = async (id: string) => {
@@ -1934,7 +1859,7 @@ export const PrincipalDashboard = () => {
         category: newMaterial.category,
         file_url: fileUrl,
         file_type: file.type,
-        status: 'Pending', // Send to Super Admin for approval
+        status: 'Approved', // Principal uploads are auto-approved
         visibility: 'Public'
       };
 
@@ -2771,7 +2696,7 @@ export const PrincipalDashboard = () => {
               <div className="bg-kenya-green p-2 rounded-lg">
                 <GraduationCap className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xl font-bold tracking-tight">Bora School <span className="text-kenya-red">Principal</span></span>
+              <span className="text-xl font-bold tracking-tight">CBC EXAMINATION ANALYSER <span className="text-kenya-red">Principal</span></span>
             </div>
             <button 
               className="lg:hidden text-gray-400 hover:text-white"
@@ -5353,7 +5278,7 @@ export const PrincipalDashboard = () => {
                               value={schoolSettings.name}
                               onChange={(e) => setSchoolSettings({...schoolSettings, name: e.target.value})}
                               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-kenya-green/20"
-                              placeholder="e.g. Bora School High School"
+                              placeholder="e.g. CBC EXAMINATION ANALYSER High School"
                             />
                           </div>
                           <div className="space-y-2 col-span-2">
@@ -6604,16 +6529,6 @@ export const PrincipalDashboard = () => {
                         <Upload className="w-4 h-4" />
                         Bulk Import to {managingClass.name}
                       </Button>
-                      {stagedStudents.length > 0 && (
-                        <Button 
-                          size="sm"
-                          onClick={() => saveStagedStudents(managingClass.name)}
-                          className="gap-2 bg-kenya-green hover:bg-kenya-green/90"
-                        >
-                          <Save className="w-4 h-4" />
-                          Save {stagedStudents.length} Students
-                        </Button>
-                      )}
                     </div>
                   </div>
                   <div className="flex gap-4">

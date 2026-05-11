@@ -217,7 +217,7 @@ export const TeacherLogin = () => {
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
           <div className="text-center">
-            <span className="text-3xl font-bold text-[#1a1a1a] tracking-tight">Bora School <span className="italic text-[#5A5A40]">Educators</span></span>
+            <span className="text-3xl font-bold text-[#1a1a1a] tracking-tight">CBC EXAMINATION ANALYSER <span className="italic text-[#5A5A40]">Educators</span></span>
           </div>
         </Link>
         
@@ -348,7 +348,7 @@ export const TeacherLogin = () => {
         )}
 
         <p className="mt-12 text-center text-xs text-gray-400 tracking-widest uppercase">
-          &copy; 2026 Bora School KE Educators
+          &copy; 2026 CBC EXAMINATION ANALYSER Educators
         </p>
       </div>
     </div>

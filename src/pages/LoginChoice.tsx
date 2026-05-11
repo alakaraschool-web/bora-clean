@@ -31,7 +31,7 @@ export const LoginChoice = () => {
     },
     {
       title: 'Register School',
-      description: 'New school? Register your institution to start using Bora School KE today.',
+      description: 'New school? Register your institution to start using CBC EXAMINATION ANALYSER today.',
       icon: Building2,
       path: '/register-school',
       color: 'bg-kenya-green',
@@ -57,7 +57,7 @@ export const LoginChoice = () => {
           <div className="bg-kenya-green p-2 rounded-lg group-hover:scale-110 transition-transform">
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
-          <span className="text-3xl font-bold text-kenya-black tracking-tight">Bora School <span className="text-kenya-red">KE</span></span>
+          <span className="text-3xl font-bold text-kenya-black tracking-tight">CBC EXAMINATION ANALYSER</span>
         </Link>
 
         <div className="text-center mb-12">

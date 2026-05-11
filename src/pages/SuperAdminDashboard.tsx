@@ -89,36 +89,8 @@ export const SuperAdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'schools' | 'analytics' | 'exams' | 'stories' | 'users'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [totalStudents, setTotalStudents] = useState(0);
-  const [activeExamsCount, setActiveExamsCount] = useState(0);
   const [users, setUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-
-  const resetSystemData = async () => {
-    if (window.confirm('WARNING: This will delete ALL students, exams, and marks across ALL schools. This action cannot be undone. Are you sure?')) {
-      setIsLoading(true);
-      try {
-        // Delete in order to respect foreign keys
-        await supabase.from('marks').delete().neq('id', '0');
-        await supabase.from('exams').delete().neq('id', '0');
-        await supabase.from('students').delete().neq('id', '0');
-        
-        addNotification({
-          title: 'System Reset',
-          message: 'All student and exam data has been cleared.',
-          type: 'success',
-          role: 'super-admin'
-        });
-        
-        fetchAllData();
-      } catch (error: any) {
-        console.error('Reset error:', error);
-        alert('Failed to reset system data: ' + error.message);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
 
   useEffect(() => {
     const checkSession = async () => {
@@ -218,7 +190,7 @@ export const SuperAdminDashboard = () => {
         id: '1',
         name: 'Dr. Sarah Jenkins',
         role: 'Principal, Oakwood Academy',
-        content: 'Bora School KE has completely transformed how we handle end-of-term examinations. The automated grading alone has saved our teachers hundreds of hours.',
+        content: 'CBC EXAMINATION ANALYSER has completely transformed how we handle end-of-term examinations. The automated grading alone has saved our teachers hundreds of hours.',
         image: 'https://picsum.photos/seed/sarah/100/100',
       },
       {
@@ -333,7 +305,7 @@ export const SuperAdminDashboard = () => {
           });
 
           const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
-          const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
+          const dummyEmail = `${sanitizedPhone}@cbcexaminationanalyser.ke`;
 
           // 1. Create Principal Auth Account (using Email directly)
           const { data: pAuthData, error: pAuthError } = await secondaryClient.auth.signUp({
@@ -359,7 +331,7 @@ export const SuperAdminDashboard = () => {
             user_id: principalAuthId,
             school_id: schoolData.id,
             name: `${newSchool.name} Principal`,
-            email: `${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
+            email: `${sanitizedPhone}@cbcexaminationanalyser.ke`, // Dummy email to satisfy DB constraint
             phone: sanitizedPhone,
             password: creds.pass,
             must_change_password: true,
@@ -449,8 +421,8 @@ export const SuperAdminDashboard = () => {
 
   const stats = [
     { label: 'Total Schools', value: schools.length.toString(), change: '+12%', icon: SchoolIcon, color: 'text-kenya-green', bg: 'bg-kenya-green/10' },
-    { label: 'Active Exams', value: activeExamsCount.toLocaleString(), change: '+18%', icon: BookOpen, color: 'text-kenya-red', bg: 'bg-kenya-red/10' },
-    { label: 'Total Students', value: totalStudents.toLocaleString(), change: '+7%', icon: Users, color: 'text-kenya-black', bg: 'bg-kenya-black/10' },
+    { label: 'Active Exams', value: '45,201', change: '+18%', icon: BookOpen, color: 'text-kenya-red', bg: 'bg-kenya-red/10' },
+    { label: 'Total Students', value: '892,400', change: '+7%', icon: Users, color: 'text-kenya-black', bg: 'bg-kenya-black/10' },
     { label: 'System Health', value: '99.9%', change: 'Stable', icon: ShieldCheck, color: 'text-kenya-green', bg: 'bg-kenya-green/10' },
   ];
 
@@ -651,11 +623,6 @@ export const SuperAdminDashboard = () => {
       // 1. Fetch Schools and Student Counts
       const schoolsData = await supabaseService.getAllSchools();
       const studentCounts = await supabaseService.getStudentCountsBySchool();
-      const totalStudentsCount = await supabaseService.getTotalStudentsCount();
-      const activeExams = await supabaseService.getActiveExamsCount();
-
-      setTotalStudents(totalStudentsCount);
-      setActiveExamsCount(activeExams);
       
       if (schoolsData) {
         const { data: profiles } = await supabase
@@ -787,7 +754,7 @@ export const SuperAdminDashboard = () => {
             <div className="bg-kenya-green p-1.5 rounded-lg">
               <GraduationCap className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-kenya-black tracking-tight">Bora School <span className="text-kenya-red">KE</span></span>
+            <span className="text-xl font-bold text-kenya-black tracking-tight">CBC EXAMINATION ANALYSER</span>
           </div>
           <button 
             className="lg:hidden text-gray-400 hover:text-gray-600"
@@ -1114,20 +1081,6 @@ export const SuperAdminDashboard = () => {
                           <div className="h-full bg-kenya-green rounded-full" style={{ width: '15%' }} />
                         </div>
                       </div>
-                    </div>
-
-                    <div className="mt-8 pt-6 border-t border-gray-100">
-                      <Button 
-                        variant="ghost" 
-                        onClick={resetSystemData}
-                        className="w-full justify-center gap-2 text-kenya-red hover:bg-kenya-red/5"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Reset System Data
-                      </Button>
-                      <p className="mt-2 text-[10px] text-center text-gray-400">
-                        Clears all students, exams, and marks for a fresh start.
-                      </p>
                     </div>
                   </div>
                 </div>

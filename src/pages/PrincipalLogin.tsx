@@ -91,7 +91,7 @@ export const PrincipalLogin = () => {
 
       // Fallback to dummy email if phone login fails
       if (authError) {
-        const dummyEmail = `${cleanPhone}@boraschool.ke`;
+        const dummyEmail = `${cleanPhone}@cbcexaminationanalyser.ke`;
         const { data: emailData, error: emailError } = await supabase.auth.signInWithPassword({
           email: dummyEmail,
           password
@@ -247,7 +247,7 @@ export const PrincipalLogin = () => {
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
           <div className="text-center">
-            <span className="text-3xl font-bold text-white tracking-tight">Bora School <span className="text-kenya-red">Principal</span></span>
+            <span className="text-3xl font-bold text-white tracking-tight">CBC EXAMINATION ANALYSER <span className="text-kenya-red">Principal</span></span>
           </div>
         </Link>
         
@@ -363,10 +363,10 @@ export const PrincipalLogin = () => {
         )}
 
         <p className="mt-8 text-center text-xs text-gray-500 tracking-widest uppercase">
-          &copy; 2026 Bora School KE Leadership Portal
+          &copy; 2026 CBC EXAMINATION ANALYSER Leadership Portal
         </p>
         <div className="mt-8 text-center text-gray-400 text-sm">
-          New to Bora School? <Link to="/register-school" className="text-kenya-green font-bold hover:underline">Register your school here</Link>
+          New to CBC EXAMINATION ANALYSER? <Link to="/register-school" className="text-kenya-green font-bold hover:underline">Register your school here</Link>
         </div>
       </div>
     </div>

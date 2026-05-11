@@ -92,7 +92,6 @@ export const TeacherDashboard = () => {
   });
   const [currentMarks, setCurrentMarks] = useState<any>({});
   const [activeTab, setActiveTab] = useState<'exams' | 'analysis' | 'class-management' | 'materials' | 'profile'>('exams');
-  const [materialsSubTab, setMaterialsSubTab] = useState<'public' | 'my-materials'>('my-materials');
   const [entryConfig, setEntryConfig] = useState({
     classId: '',
     streamId: '',
@@ -992,7 +991,7 @@ export const TeacherDashboard = () => {
               <div className="bg-kenya-green p-2 rounded-lg group-hover:rotate-12 transition-transform">
                 <GraduationCap className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xl font-bold tracking-tight">Bora School <span className="text-kenya-red">Staff</span></span>
+              <span className="text-xl font-bold tracking-tight">CBC EXAMINATION ANALYSER <span className="text-kenya-red">Staff</span></span>
             </div>
             <button 
               className="lg:hidden text-gray-400 hover:text-white"
@@ -1616,126 +1615,74 @@ export const TeacherDashboard = () => {
                   <p className="text-gray-500">Access and manage educational resources for your classes.</p>
                 </div>
                 <div className="flex gap-3">
-                  <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200">
-                    <button 
-                      onClick={() => setMaterialsSubTab('my-materials')}
-                      className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${materialsSubTab === 'my-materials' ? 'bg-white text-kenya-black shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      My Assignments
-                    </button>
-                    <button 
-                      onClick={() => setMaterialsSubTab('public')}
-                      className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${materialsSubTab === 'public' ? 'bg-white text-kenya-black shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                      Public Resources
-                    </button>
-                  </div>
                 </div>
               </div>
 
-              {materialsSubTab === 'my-materials' ? (
-                <div className="space-y-6">
-                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-wrap items-center gap-4">
-                    <div className="flex-1 min-w-[200px] relative">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input 
-                        type="text" 
-                        placeholder="Search materials..." 
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none"
-                      />
-                    </div>
-                    <select className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none font-bold text-sm">
-                      <option value="">All Subjects</option>
-                      {Array.from(new Set((currentTeacher?.assignments || []).map((a: any) => a.subject))).map((s: any) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                    <select className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none font-bold text-sm">
-                      <option value="">All Classes</option>
-                      {Array.from(new Set((currentTeacher?.assignments || []).map((a: any) => a.classId))).map((c: any) => {
-                        const className = classes.find(cl => cl.id === c)?.name || `Class ${c}`;
-                        return <option key={c} value={c}>{className}</option>;
-                      })}
-                    </select>
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-wrap items-center gap-4">
+                  <div className="flex-1 min-w-[200px] relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Search materials..." 
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none"
+                    />
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {examMaterials
-                      .filter(m => (currentTeacher?.assignments || []).some((a: any) => a.subject === m.subject))
-                      .map((material) => (
-                      <div key={material.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="bg-kenya-green/10 p-3 rounded-2xl group-hover:rotate-6 transition-transform">
-                            <BookOpen className="w-6 h-6 text-kenya-green" />
-                          </div>
-                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{material.fileType}</span>
-                        </div>
-                        <h3 className="text-lg font-bold text-kenya-black mb-1 truncate">{material.title}</h3>
-                        <div className="flex flex-wrap gap-2 mb-6">
-                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-[10px] font-bold uppercase">{material.subject}</span>
-                          <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-[10px] font-bold uppercase">Grade 7</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase mb-6">
-                          <span>{material.uploadedAt || '2024-03-15'}</span>
-                          <span>By Admin</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button variant="secondary" className="flex-1 gap-2 rounded-2xl py-2 text-xs">
-                            <Download className="w-3 h-3" />
-                            Download
-                          </Button>
-                          <Button variant="ghost" className="flex-1 gap-2 rounded-2xl py-2 text-xs border border-gray-100">
-                            <Search className="w-3 h-3" />
-                            View
-                          </Button>
-                        </div>
-                      </div>
+                  <select className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none font-bold text-sm">
+                    <option value="">All Subjects</option>
+                    {Array.from(new Set((currentTeacher?.assignments || []).map((a: any) => a.subject))).map((s: any) => (
+                      <option key={s} value={s}>{s}</option>
                     ))}
-                    {(examMaterials.filter(m => (currentTeacher?.assignments || []).some((a: any) => a.subject === m.subject)).length === 0) && (
-                      <div className="col-span-full py-20 text-center bg-gray-50 rounded-[3rem] border-4 border-dashed border-gray-200">
-                        <Library className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-xl font-bold text-gray-400 uppercase tracking-tight">No materials assigned to your subjects</p>
-                      </div>
-                    )}
-                  </div>
+                  </select>
+                  <select className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none font-bold text-sm">
+                    <option value="">All Classes</option>
+                    {Array.from(new Set((currentTeacher?.assignments || []).map((a: any) => a.classId))).map((c: any) => {
+                      const className = classes.find(cl => cl.id === c)?.name || `Class ${c}`;
+                      return <option key={c} value={c}>{className}</option>;
+                    })}
+                  </select>
                 </div>
-              ) : (
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {isLoadingResources ? (
-                    <div className="col-span-full py-20 text-center">
-                      <div className="animate-spin w-10 h-10 border-4 border-kenya-green border-t-transparent rounded-full mx-auto mb-4"></div>
-                      <p className="text-gray-500 font-bold">Loading resources...</p>
-                    </div>
-                  ) : publicResources.length > 0 ? (
-                    publicResources.map((resource) => (
-                      <div key={resource.name} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
-                        <div className="bg-blue-50 p-3 rounded-2xl w-fit mb-4 group-hover:rotate-6 transition-transform">
-                          <FileText className="w-6 h-6 text-blue-600" />
+                  {examMaterials
+                    .filter(m => (currentTeacher?.assignments || []).some((a: any) => a.subject === m.subject))
+                    .map((material) => (
+                    <div key={material.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="bg-kenya-green/10 p-3 rounded-2xl group-hover:rotate-6 transition-transform">
+                          <BookOpen className="w-6 h-6 text-kenya-green" />
                         </div>
-                        <h3 className="text-lg font-bold text-kenya-black mb-1 truncate">{resource.name}</h3>
-                        <p className="text-xs text-gray-500 mb-6 uppercase font-bold tracking-wider">Public Resource</p>
-                        
-                        <Button 
-                          variant="secondary" 
-                          className="w-full gap-2 rounded-2xl"
-                          onClick={async () => {
-                            const url = await supabaseService.getResourceUrl(resource.name);
-                            window.open(url, '_blank');
-                          }}
-                        >
-                          <Download className="w-4 h-4" />
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{material.fileType}</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-kenya-black mb-1 truncate">{material.title}</h3>
+                      <div className="flex flex-wrap gap-2 mb-6">
+                        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-[10px] font-bold uppercase">{material.subject}</span>
+                        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md text-[10px] font-bold uppercase">Grade 7</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-gray-400 font-bold uppercase mb-6">
+                        <span>{material.uploadedAt || '2024-03-15'}</span>
+                        <span>By Admin</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="secondary" className="flex-1 gap-2 rounded-2xl py-2 text-xs">
+                          <Download className="w-3 h-3" />
                           Download
                         </Button>
+                        <Button variant="ghost" className="flex-1 gap-2 rounded-2xl py-2 text-xs border border-gray-100">
+                          <Search className="w-3 h-3" />
+                          View
+                        </Button>
                       </div>
-                    ))
-                  ) : (
-                    <div className="col-span-full py-20 text-center bg-white rounded-[3rem] border-4 border-dashed border-gray-100">
-                      <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                      <p className="text-xl font-bold text-gray-400 uppercase tracking-tight">No public resources available</p>
+                    </div>
+                  ))}
+                  {(examMaterials.filter(m => (currentTeacher?.assignments || []).some((a: any) => a.subject === m.subject)).length === 0) && (
+                    <div className="col-span-full py-20 text-center bg-gray-50 rounded-[3rem] border-4 border-dashed border-gray-200">
+                      <Library className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-xl font-bold text-gray-400 uppercase tracking-tight">No materials assigned to your subjects</p>
                     </div>
                   )}
                 </div>
-              )}
+              </div>
             </div>
           ) : activeTab === 'class-management' ? (
             <div className="space-y-8">

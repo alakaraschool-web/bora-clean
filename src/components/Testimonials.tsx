@@ -7,7 +7,7 @@ const defaultTestimonials = [
     id: '1',
     name: 'Dr. Sarah Jenkins',
     role: 'Principal, Oakwood Academy',
-    content: 'Alakara KE has completely transformed how we handle end-of-term examinations. The automated grading alone has saved our teachers hundreds of hours.',
+    content: 'CBC EXAMINATION ANALYSER has completely transformed how we handle end-of-term examinations. The automated grading alone has saved our teachers hundreds of hours.',
     image: 'https://picsum.photos/seed/sarah/100/100',
   },
   {

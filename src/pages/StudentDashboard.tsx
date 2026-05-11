@@ -221,7 +221,7 @@ export const StudentDashboard = () => {
               <div className="bg-white p-2 rounded-xl group-hover:rotate-12 transition-transform">
                 <GraduationCap className="w-8 h-8 text-black" />
               </div>
-              <span className="text-2xl font-black tracking-tighter uppercase italic">Bora School <span className="text-[#FF6321]">Students</span></span>
+              <span className="text-2xl font-black tracking-tighter uppercase italic">CBC EXAMINATION ANALYSER <span className="text-[#FF6321]">Students</span></span>
             </div>
             <button 
               className="lg:hidden text-gray-400 hover:text-white"

@@ -169,7 +169,7 @@ export const SchoolRegistration = () => {
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
           <div className="text-center">
-            <span className="text-3xl font-bold text-white tracking-tight">Bora School <span className="text-kenya-red">Registration</span></span>
+            <span className="text-3xl font-bold text-white tracking-tight">CBC EXAMINATION ANALYSER <span className="text-kenya-red">Registration</span></span>
           </div>
         </Link>
 
@@ -381,7 +381,7 @@ export const SchoolRegistration = () => {
               </div>
               <h2 className="text-3xl font-bold text-kenya-black mb-4 uppercase tracking-tight">Registration Successful!</h2>
               <p className="text-gray-600 mb-8">
-                Welcome to Bora School, <span className="font-bold text-kenya-black">{formData.principalName}</span>. Your school <span className="font-bold text-kenya-black">{formData.schoolName}</span> has been registered successfully.
+                Welcome to CBC EXAMINATION ANALYSER, <span className="font-bold text-kenya-black">{formData.principalName}</span>. Your school <span className="font-bold text-kenya-black">{formData.schoolName}</span> has been registered successfully.
               </p>
               <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8 text-left space-y-3">
                 <div className="flex items-center gap-3">

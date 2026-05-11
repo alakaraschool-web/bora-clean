@@ -10,8 +10,6 @@ export const Navbar = () => {
   const navLinks = [
     { name: 'Features', href: '#features' },
     { name: 'How It Works', href: '#how-it-works' },
-    { name: 'Exams & Resources', href: '#exams-resources' },
-    { name: 'Testimonials', href: '#testimonials' },
   ];
 
   return (
@@ -22,7 +20,7 @@ export const Navbar = () => {
             <div className="bg-kenya-green p-2 rounded-lg">
               <GraduationCap className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-kenya-black tracking-tight">Bora School <span className="text-kenya-red">KE</span></span>
+            <span className="text-2xl font-bold text-kenya-black tracking-tight">CBC EXAMINATION ANALYSER</span>
           </div>
 
           {/* Desktop Nav */}
