@@ -1232,7 +1232,10 @@ export const PrincipalDashboard = () => {
         });
 
         const authResult = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(authResult.error || 'Failed to create staff account');
+        if (!response.ok) {
+          console.error('Auth API error:', authResult);
+          throw new Error(authResult.error || `Failed to create staff account: ${response.statusText}`);
+        }
 
         const authUserId = authResult.user.id;
 
