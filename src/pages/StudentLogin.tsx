@@ -84,14 +84,14 @@ export const StudentLogin = () => {
       const cleanPhone = sanitizedInput.replace(/\s+/g, '');
       const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`;
       const dummyEmail = isPhone 
-        ? `user${cleanPhone}@student.boraschool.ke`
-        : `user${sanitizedInput.toLowerCase().replace(/[^0-9a-z]/g, '')}@student.boraschool.ke`;
+        ? `${cleanPhone}@student.boraschool.ke`
+        : `${sanitizedInput.toLowerCase().replace(/[^0-9a-z]/g, '')}@student.boraschool.ke`;
 
       // 1. Try student-login-verify first if it looks like an ADM number
       const isAdm = sanitizedInput.includes('-') || sanitizedInput.length > 5;
       if (isAdm && !isPhone) {
         try {
-          const verifyResponse = await fetch(window.location.origin + '/api/auth/student-login-verify', {
+          const verifyResponse = await fetch('/api/auth/student-login-verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

@@ -8,7 +8,7 @@ export const supabaseService = {
       .from('profiles')
       .select('*')
       .eq('id', id)
-      .maybeSingle();
+      .single();
     if (error) throw error;
     return data;
   },
@@ -95,7 +95,7 @@ export const supabaseService = {
       .from('school_settings')
       .select('*')
       .eq('school_id', schoolId)
-      .maybeSingle();
+      .single();
     if (error) throw error;
     return data;
   },
@@ -319,7 +319,6 @@ export const supabaseService = {
 
   // Messages
   async getMessages(schoolId: string, role: string, userId: string) {
-    if (!userId) return [];
     const { data, error } = await supabase
       .from('messages')
       .select('*, sender:profiles!sender_id(name, role)')

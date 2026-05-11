@@ -26,30 +26,30 @@ export const ExamsResources = () => {
 
   const resources = [
     {
-      title: 'KJSEA Corner',
-      category: 'KJSEA Corner',
-      count: materials.filter(m => m.category === 'KJSEA Corner').length || '150+',
+      title: 'KCPE Past Papers',
+      category: 'Past Papers',
+      count: materials.filter(m => m.category === 'Past Paper').length || '150+',
       icon: FileText,
       color: 'bg-kenya-green/10 text-kenya-green',
     },
     {
-      title: 'KPSEA Corner',
-      category: 'KPSEA Corner',
-      count: materials.filter(m => m.category === 'KPSEA Corner').length || '200+',
+      title: 'KCSE Revision Notes',
+      category: 'Notes',
+      count: materials.filter(m => m.category === 'Notes').length || '200+',
       icon: BookOpen,
       color: 'bg-kenya-red/10 text-kenya-red',
     },
     {
-      title: 'Schemes of Work',
-      category: 'Schemes of Work',
-      count: materials.filter(m => m.category === 'Schemes of Work').length || '100+',
+      title: 'Marking Schemes',
+      category: 'Answers',
+      count: materials.filter(m => m.category === 'Marking Scheme').length || '100+',
       icon: Download,
       color: 'bg-kenya-black/10 text-kenya-black',
     },
     {
-      title: 'KCSE Resources',
-      category: 'KCSE Resources',
-      count: materials.filter(m => m.category === 'KCSE Resources').length || '80+',
+      title: 'CBC Learning Materials',
+      category: 'Resources',
+      count: materials.filter(m => m.category === 'CBC').length || '80+',
       icon: Search,
       color: 'bg-kenya-green/10 text-kenya-green',
     },
@@ -105,24 +105,6 @@ export const ExamsResources = () => {
               </button>
             </motion.div>
           ))}
-        </div>
-
-        <div className="mt-16 bg-white rounded-3xl border border-gray-100 shadow-sm p-8">
-          <h3 className="text-2xl font-bold text-kenya-black mb-6">Available Resources</h3>
-          <div className="space-y-4">
-            {materials.map((material) => (
-              <div key={material.id} className="flex items-center justify-between p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
-                <div>
-                  <p className="font-bold text-kenya-black">{material.title}</p>
-                  <p className="text-sm text-gray-500">{material.category}</p>
-                </div>
-                <a href={material.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-kenya-green font-bold text-sm">
-                  <Download className="w-4 h-4" />
-                  Download
-                </a>
-              </div>
-            ))}
-          </div>
         </div>
 
         <div className="mt-16 bg-kenya-black rounded-3xl p-8 lg:p-12 text-white relative overflow-hidden">

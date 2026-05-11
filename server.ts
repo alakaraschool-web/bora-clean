@@ -15,11 +15,6 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  app.use((req, res, next) => {
-    console.log(`${req.method} ${req.url}`);
-    next();
-  });
-
   const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
@@ -110,7 +105,6 @@ async function startServer() {
         const password = 'password123';
 
         try {
-          console.log('Processing student:', student);
           // 1. Create Auth Account
           const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email: dummyEmail,
@@ -175,24 +169,20 @@ async function startServer() {
       res.json(results);
     } catch (error: any) {
       console.error('Server Bulk Create Error:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      res.status(500).json({ error: errorMessage || 'Internal server error' });
+      res.status(500).json({ error: error.message || 'Internal server error' });
     }
   });
 
   // API Route to create a user using Service Role Key
   app.post('/api/auth/create-user', async (req, res) => {
+    const { email, password, role, name, phone, school_id, student_id } = req.body;
+
+    if (!email || !password || !role || !name || !school_id) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
     try {
-      const { email, password, role, name, phone, school_id, student_id } = req.body;
-      console.log('API create-user request body:', req.body);
-
-      if (!email || !password || !role || !name || !school_id) {
-        console.error('API create-user missing fields:', { email, password, role, name, school_id });
-        return res.status(400).json({ success: false, error: 'Missing required fields' });
-      }
-
       // 1. Create Auth Account
-      console.log('Attempting to create user with email:', email);
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
@@ -201,7 +191,7 @@ async function startServer() {
       });
 
       if (authError) {
-        console.error('Supabase Auth error:', authError);
+        // Check if user already exists
         if (authError.message.includes('already registered')) {
           // Find the user
           const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
@@ -244,10 +234,10 @@ async function startServer() {
 
       if (profileError) throw profileError;
 
-      return res.json({ success: true, user: authData.user });
+      res.json({ success: true, user: authData.user });
     } catch (error: any) {
       console.error('Server Create User Error:', error);
-      return res.status(500).json({ success: false, error: error.message || 'Internal server error' });
+      res.status(500).json({ error: error.message || 'Internal server error' });
     }
   });
 
@@ -327,7 +317,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

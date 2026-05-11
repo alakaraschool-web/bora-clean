@@ -470,7 +470,7 @@ export const PrincipalDashboard = () => {
           .from('school_settings')
           .select('*')
           .eq('school_id', school.id)
-          .maybeSingle();
+          .single();
         if (settingsData) {
           setSchoolSettings({
             name: settingsData.name || school.name,
@@ -488,17 +488,12 @@ export const PrincipalDashboard = () => {
         }
 
         // Fetch Messages
-        if (principalProfile?.id) {
-          const { data: messagesData } = await supabase
-            .from('messages')
-            .select(`
-              *,
-              sender:profiles!sender_id(name, role)
-            `)
-            .or(`sender_id.eq.${principalProfile.id},receiver_id.eq.${principalProfile.id},and(type.eq.broadcast,target_role.eq.principal,school_id.eq.${school.id})`)
-            .order('created_at', { ascending: true });
-          if (messagesData) setMessages(messagesData);
-        }
+        const { data: messagesData } = await supabase
+          .from('messages')
+          .select('*, sender:profiles!sender_id(name, role)')
+          .or(`sender_id.eq.${principalProfile?.id},receiver_id.eq.${principalProfile?.id},and(type.eq.broadcast,target_role.eq.principal,school_id.eq.${school.id})`)
+          .order('created_at', { ascending: true });
+        if (messagesData) setMessages(messagesData);
 
         // Fetch Exam Materials
         const { data: materialsData } = await supabase
@@ -563,7 +558,6 @@ export const PrincipalDashboard = () => {
       const newMarks = [...marks];
       const newStudentsToStage: any[] = [];
       const examId = selectedProcessingExamId;
-      const newStudents = [...students];
       
       if (!examId) {
         alert('Please select an examination first.');
@@ -591,13 +585,6 @@ export const PrincipalDashboard = () => {
           };
           newStudentsToStage.push(newStudentData);
           student = newStudentData;
-        } else if (student && selectedProcessingClass !== 'All') {
-          const studentIdx = newStudents.findIndex(s => s.adm === admNo);
-          if (studentIdx !== -1) {
-            newStudents[studentIdx] = { ...newStudents[studentIdx], class: selectedProcessingClass };
-            // Update student class in database
-            supabase.from('students').update({ class: selectedProcessingClass }).eq('id', newStudents[studentIdx].id).then();
-          }
         }
 
         if (student) {
@@ -632,7 +619,6 @@ export const PrincipalDashboard = () => {
       });
 
       setStagedMarks(newMarks);
-      setStudents(newStudents);
       setStagedNewStudents(newStudentsToStage);
       alert(`Bulk marks processed. ${newStudentsToStage.length > 0 ? `${newStudentsToStage.length} new students identified.` : ''} Please click "Save Changes" to finalize.`);
     };
@@ -648,7 +634,7 @@ export const PrincipalDashboard = () => {
         // 1. Sync new students first if any
         let finalStudents = [...students];
         if (stagedNewStudents.length > 0) {
-          const res = await fetch(window.location.origin + '/api/auth/bulk-create-students', {
+          const res = await fetch('/api/auth/bulk-create-students', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -656,19 +642,7 @@ export const PrincipalDashboard = () => {
               school_id: school.id
             })
           });
-          
-          if (!res.ok) {
-            const errorText = await res.text();
-            throw new Error(`Server error: ${errorText}`);
-          }
-          
           const result = await res.json();
-          
-          if (result.failed && result.failed.length > 0) {
-            console.error('Some students failed to sync:', result.failed);
-            alert(`Some students failed to sync: ${result.failed.map((f: any) => f.name).join(', ')}. Please check the console for details.`);
-          }
-          
           if (result.success) {
             // Refresh students to get real IDs
             const { data: refreshedStudents } = await supabase
@@ -1218,12 +1192,10 @@ export const PrincipalDashboard = () => {
       const password = Math.random().toString(36).slice(-8);
       
       try {
-        const dummyEmail = `user${sanitizedPhone}@boraschool.ke`;
+        const dummyEmail = `${sanitizedPhone}@boraschool.ke`;
 
         // 1. Create Auth Account and Profile via Server API
-        const apiUrl = window.location.origin + '/api/auth/create-user';
-        console.log('Fetching URL:', apiUrl);
-        const response = await fetch(apiUrl, {
+        const response = await fetch('/api/auth/create-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1236,11 +1208,8 @@ export const PrincipalDashboard = () => {
           })
         });
 
-        const authResult = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          console.error('Auth API error:', authResult);
-          throw new Error(authResult.error || `Failed to create staff account: ${response.statusText}`);
-        }
+        const authResult = await response.json();
+        if (!response.ok) throw new Error(authResult.error || 'Failed to create staff account');
 
         const authUserId = authResult.user.id;
 
@@ -1368,13 +1337,11 @@ export const PrincipalDashboard = () => {
 
         // Use ADM number to generate a virtual phone number for Auth
         const studentPhone = `+254${newStudent.adm.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
-        const dummyEmail = `user${studentPhone.replace('+', '')}@student.boraschool.ke`;
+        const dummyEmail = `${studentPhone.replace('+', '')}@student.boraschool.ke`;
         const password = 'password123'; // Default password for students
 
         // 1. Create Auth Account and Profile via Server API
-        const apiUrl = window.location.origin + '/api/auth/create-user';
-        console.log('Fetching URL:', apiUrl);
-        const response = await fetch(apiUrl, {
+        const response = await fetch('/api/auth/create-user', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1387,7 +1354,7 @@ export const PrincipalDashboard = () => {
           })
         });
 
-        const authResult = await response.json().catch(() => ({}));
+        const authResult = await response.json();
         if (!response.ok) throw new Error(authResult.error || 'Failed to create student account');
 
         const authUserId = authResult.user.id;
@@ -1590,7 +1557,7 @@ export const PrincipalDashboard = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (evt) => {
+    reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
@@ -1632,52 +1599,48 @@ export const PrincipalDashboard = () => {
         
         // Sync with Supabase via Server API
         if (studentsToInsert.length > 0) {
-          try {
-            const response = await fetch(window.location.origin + '/api/auth/bulk-create-students', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                students: studentsToInsert,
-                school_id: school.id
-              })
-            });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Server error: ${errorText}`);
-          }
-
-          const result = await response.json();
-          if (result.success && result.success.length > 0) {
-            // Fetch updated students list to get real IDs and profiles
-            const { data } = await supabase.from('students').select('*').eq('school_id', school.id);
-            if (data) {
-              setStudents(data.map(s => ({
-                id: s.id,
-                name: s.name,
-                adm: s.admission_number,
-                class: s.class,
-                status: s.status || 'Active',
-                gender: s.gender || 'Male',
-                upi_no: s.upi_no,
-                kpsea_no: s.kpsea_no,
-                dob: s.dob,
-                admission_date: s.admission_date,
-                parent_name: s.parent_name,
-                parent_phone: s.parent_phone,
-                house: s.house,
-                profile_image: s.profile_image || null,
-                password: s.password
-              })));
+          fetch('/api/auth/bulk-create-students', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              students: studentsToInsert,
+              school_id: school.id
+            })
+          })
+          .then(res => res.json())
+          .then(result => {
+            if (result.success && result.success.length > 0) {
+              // Fetch updated students list to get real IDs and profiles
+              supabase.from('students').select('*').eq('school_id', school.id).then(({ data }) => {
+                if (data) {
+                  setStudents(data.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    adm: s.admission_number,
+                    class: s.class,
+                    status: s.status || 'Active',
+                    gender: s.gender || 'Male',
+                    upi_no: s.upi_no,
+                    kpsea_no: s.kpsea_no,
+                    dob: s.dob,
+                    admission_date: s.admission_date,
+                    parent_name: s.parent_name,
+                    parent_phone: s.parent_phone,
+                    house: s.house,
+                    profile_image: s.profile_image || null,
+                    password: s.password
+                  })));
+                }
+              });
+              alert(`Successfully imported ${result.success.length} students! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
+            } else if (result.error) {
+              alert('Bulk import failed: ' + result.error);
             }
-            alert(`Successfully imported ${result.success.length} students! ${result.failed.length > 0 ? `Failed: ${result.failed.length}` : ''}`);
-          } else if (result.error) {
-            alert('Bulk import failed: ' + result.error);
-          }
-          } catch (err) {
+          })
+          .catch(err => {
             console.error('Error syncing bulk students:', err);
-            alert(`Bulk import failed: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
-          }
+            alert('Bulk import failed. Please check your connection.');
+          });
         }
       } catch (err) {
         alert('Error parsing Excel file. Please ensure it follows the template format.');
@@ -1691,7 +1654,7 @@ export const PrincipalDashboard = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (evt) => {
+    reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
@@ -1732,9 +1695,7 @@ export const PrincipalDashboard = () => {
 
         setStudents(newStudents);
         setStagedStudents(prev => [...prev, ...studentsToInsert]);
-        
-        // Automatically save the staged students
-        await saveStagedStudents(className);
+        alert(`Successfully staged ${studentsToInsert.length} students. Click Save to confirm import.`);
       } catch (err) {
         alert('Error parsing Excel file. Please ensure it follows the format: Name, Admission No');
       }
@@ -1746,24 +1707,14 @@ export const PrincipalDashboard = () => {
     if (stagedStudents.length === 0) return;
 
     try {
-      console.log('Saving students:', stagedStudents);
-      const response = await fetch(window.location.origin + '/api/auth/bulk-create-students', {
+      const result = await fetch('/api/auth/bulk-create-students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           students: stagedStudents,
           school_id: school.id
         })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server error response:', errorText);
-        throw new Error(`Server error: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log('Bulk import result:', result);
+      }).then(res => res.json());
 
       if (result.success && result.success.length > 0) {
         // Fetch updated students list to get real IDs and profiles
@@ -1794,7 +1745,7 @@ export const PrincipalDashboard = () => {
       }
     } catch (err) {
       console.error('Error syncing bulk students to class:', err);
-      alert(`Bulk import failed: ${err instanceof Error ? err.message : 'Please check your connection.'}`);
+      alert('Bulk import failed. Please check your connection.');
     }
   };
 
@@ -3077,7 +3028,7 @@ export const PrincipalDashboard = () => {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
                   <h3 className="text-xl font-bold text-kenya-black mb-6">Class Performance Comparison</h3>
                   <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={classPerformance}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
@@ -3094,7 +3045,7 @@ export const PrincipalDashboard = () => {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
                     <h3 className="text-xl font-bold text-kenya-black mb-6">Subject Pass Rates (%)</h3>
                     <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={subjectStats} layout="vertical">
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
                           <XAxis type="number" domain={[0, 100]} axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 10}} />
@@ -3111,7 +3062,7 @@ export const PrincipalDashboard = () => {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
                     <h3 className="text-xl font-bold text-kenya-black mb-6">Gender Performance Comparison</h3>
                     <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                      <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
                             data={genderStats}
@@ -4775,7 +4726,7 @@ export const PrincipalDashboard = () => {
                       <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-xl font-bold text-kenya-black mb-6">Subject Performance Averages</h3>
                         <div className="h-80">
-                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                          <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={subjectPerformance}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                               <XAxis dataKey="subject" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
@@ -4793,7 +4744,7 @@ export const PrincipalDashboard = () => {
                       <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-xl font-bold text-kenya-black mb-6">Grade Distribution</h3>
                         <div className="h-80">
-                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                          <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie
                                 data={gradeDistribution}
@@ -4821,7 +4772,7 @@ export const PrincipalDashboard = () => {
                       <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-xl font-bold text-kenya-black mb-6">Performance Range (Top vs Bottom)</h3>
                         <div className="h-80">
-                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                          <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={subjectPerformance}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                               <XAxis dataKey="subject" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} />
@@ -4840,7 +4791,7 @@ export const PrincipalDashboard = () => {
                       <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
                         <h3 className="text-xl font-bold text-kenya-black mb-6">Gender Performance Comparison</h3>
                         <div className="h-80">
-                          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                          <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={genderPerformance} layout="vertical">
                               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
                               <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} domain={[0, 100]} />
