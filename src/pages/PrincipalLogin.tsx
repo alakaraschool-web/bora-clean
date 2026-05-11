@@ -82,7 +82,7 @@ export const PrincipalLogin = () => {
       const sanitizedInput = phone.trim();
       const cleanPhone = sanitizedInput.replace(/\s+/g, '');
       
-      const dummyEmail = `user.${cleanPhone}@boraschool.ke`;
+      const dummyEmail = `user${cleanPhone}@boraschool.ke`;
       let { data, error: authError } = await supabase.auth.signInWithPassword({
         email: dummyEmail,
         password

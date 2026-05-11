@@ -333,7 +333,7 @@ export const SuperAdminDashboard = () => {
           });
 
           const sanitizedPhone = newSchool.principalPhone.replace(/\s+/g, '');
-          const dummyEmail = `user.${sanitizedPhone}@boraschool.ke`;
+          const dummyEmail = `user${sanitizedPhone}@boraschool.ke`;
 
           // 1. Create Principal Auth Account (using Email directly)
           const { data: pAuthData, error: pAuthError } = await secondaryClient.auth.signUp({
@@ -359,7 +359,7 @@ export const SuperAdminDashboard = () => {
             user_id: principalAuthId,
             school_id: schoolData.id,
             name: `${newSchool.name} Principal`,
-            email: `user.${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
+            email: `user${sanitizedPhone}@boraschool.ke`, // Dummy email to satisfy DB constraint
             phone: sanitizedPhone,
             password: creds.pass,
             must_change_password: true,

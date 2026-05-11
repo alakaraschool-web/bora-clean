@@ -84,8 +84,8 @@ export const StudentLogin = () => {
       const cleanPhone = sanitizedInput.replace(/\s+/g, '');
       const formattedPhone = cleanPhone.startsWith('+') ? cleanPhone : `+254${cleanPhone.replace(/^0/, '')}`;
       const dummyEmail = isPhone 
-        ? `user.${cleanPhone}@student.boraschool.ke`
-        : `user.${sanitizedInput.toLowerCase().replace(/[^0-9a-z]/g, '')}@student.boraschool.ke`;
+        ? `user${cleanPhone}@student.boraschool.ke`
+        : `user${sanitizedInput.toLowerCase().replace(/[^0-9a-z]/g, '')}@student.boraschool.ke`;
 
       // 1. Try student-login-verify first if it looks like an ADM number
       const isAdm = sanitizedInput.includes('-') || sanitizedInput.length > 5;
