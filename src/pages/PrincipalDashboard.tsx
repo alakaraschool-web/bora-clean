@@ -470,7 +470,7 @@ export const PrincipalDashboard = () => {
           .from('school_settings')
           .select('*')
           .eq('school_id', school.id)
-          .single();
+          .maybeSingle();
         if (settingsData) {
           setSchoolSettings({
             name: settingsData.name || school.name,
@@ -488,12 +488,17 @@ export const PrincipalDashboard = () => {
         }
 
         // Fetch Messages
-        const { data: messagesData } = await supabase
-          .from('messages')
-          .select('*, sender:profiles!sender_id(name, role)')
-          .or(`sender_id.eq.${principalProfile?.id},receiver_id.eq.${principalProfile?.id},and(type.eq.broadcast,target_role.eq.principal,school_id.eq.${school.id})`)
-          .order('created_at', { ascending: true });
-        if (messagesData) setMessages(messagesData);
+        if (principalProfile?.id) {
+          const { data: messagesData } = await supabase
+            .from('messages')
+            .select(`
+              *,
+              sender:profiles!sender_id(name, role)
+            `)
+            .or(`sender_id.eq.${principalProfile.id},receiver_id.eq.${principalProfile.id},and(type.eq.broadcast,target_role.eq.principal,school_id.eq.${school.id})`)
+            .order('created_at', { ascending: true });
+          if (messagesData) setMessages(messagesData);
+        }
 
         // Fetch Exam Materials
         const { data: materialsData } = await supabase
