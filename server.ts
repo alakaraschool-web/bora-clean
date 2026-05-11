@@ -41,7 +41,7 @@ async function startServer() {
     try {
       for (const student of students) {
         const { name, admission_number, class: className, gender, phone } = student;
-        const dummyEmail = `${admission_number.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.boraschool.ke`;
+        const dummyEmail = `${admission_number.toLowerCase().replace(/[^a-z0-9]/g, '')}@student.cbcexaminationanalyser.ke`;
         const password = 'password123';
 
         try {
@@ -115,14 +115,18 @@ async function startServer() {
 
   // API Route to create a user using Service Role Key
   app.post('/api/auth/create-user', async (req, res) => {
+    console.log('Received POST request to /api/auth/create-user');
+    console.log('Request body:', req.body);
     const { email, password, role, name, phone, school_id, student_id } = req.body;
 
     if (!email || !password || !role || !name || !school_id) {
+      console.error('Missing fields in body:', req.body);
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     try {
       // 1. Create Auth Account
+      console.log('Attempting to create auth user:', email);
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
@@ -131,13 +135,16 @@ async function startServer() {
       });
 
       if (authError) {
+        console.error('Auth User Creation Error:', authError);
         // Check if user already exists
         if (authError.message.includes('already registered')) {
           // Find the user
+          console.log('User already registered, searching for existing user...');
           const { data: users, error: listError } = await supabaseAdmin.auth.admin.listUsers();
           if (listError) throw listError;
           const existingUser = users.users.find((u: any) => u.email === email);
           if (existingUser) {
+            console.log('Existing user found:', existingUser.id);
             // Update profile if needed
             const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
               id: existingUser.id,
@@ -152,13 +159,16 @@ async function startServer() {
               must_change_password: true
             });
             if (profileError) throw profileError;
+            console.log('Profile updated successfully.');
             return res.json({ success: true, user: existingUser, message: 'User already existed, profile updated' });
           }
         }
         throw authError;
       }
+      console.log('Auth user created:', authData.user.id);
 
       // 2. Create Profile Record
+      console.log('Attempting to create profile record...');
       const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
         id: authData.user.id,
         user_id: authData.user.id,
@@ -172,12 +182,16 @@ async function startServer() {
         must_change_password: true
       });
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        throw profileError;
+      }
 
+      console.log('Profile created successfully.');
       res.json({ success: true, user: authData.user });
     } catch (error: any) {
-      console.error('Server Create User Error:', error);
-      res.status(500).json({ error: error.message || 'Internal server error' });
+      console.error('Server Create User Error (Detailed):', error);
+      res.status(500).json({ error: error.message || 'Internal server error', details: error });
     }
   });
 
