@@ -1,6 +1,6 @@
 import { Star } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { supabaseService } from '../services/supabaseService';
+import { supabaseService } from '../lib/supabase';
 
 const defaultTestimonials = [
   {

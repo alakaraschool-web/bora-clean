@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { FileText, Download, BookOpen, Search, Filter } from 'lucide-react';
 import { Button } from './Button';
 import { useState, useEffect } from 'react';
-import { supabaseService } from '../services/supabaseService';
+import { supabaseService } from '../lib/supabase';
 
 export const ExamsResources = () => {
   const [materials, setMaterials] = useState<any[]>([]);

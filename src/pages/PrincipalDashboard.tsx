@@ -77,7 +77,7 @@ import JSZip from 'jszip';
 
 import { supabaseService } from '../services/supabaseService';
 import { supabase } from '../lib/supabase';
-import { Database } from '../lib/database.types';
+// import { Database } from '../lib/database.types';
 
 export const PrincipalDashboard = () => {
   const navigate = useNavigate();
@@ -1266,17 +1266,10 @@ export const PrincipalDashboard = () => {
       setIsLoading(false);
     } else {
       try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const supabaseModule = await import('../lib/supabase');
+        const supabase = supabaseModule.supabase;
         
-        const secondaryClient = createClient(supabaseUrl, supabaseAnonKey, {
-          auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-            detectSessionInUrl: false
-          }
-        });
+        const secondaryClient = supabase;
 
         // Use ADM number to generate a virtual phone number for Auth
         const studentPhone = `+254${newStudent.adm.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
