@@ -27,6 +27,7 @@ async function startServer() {
 
   // API Route to bulk create students
   app.post('/api/auth/bulk-create-students', async (req, res) => {
+    console.log('Received bulk-create-students request');
     const { students, school_id } = req.body;
 
     if (!students || !Array.isArray(students) || !school_id) {
@@ -194,6 +195,7 @@ async function startServer() {
       res.status(500).json({ error: error.message || 'Internal server error', details: error });
     }
   });
+
 
   // API Route to reset Auth password using Service Role Key
   app.post('/api/auth/reset-password', async (req, res) => {
