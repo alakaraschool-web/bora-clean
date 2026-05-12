@@ -207,10 +207,36 @@ async function startServer() {
 
   // API Route to create a principal
   app.post('/api/principal/create', async (req, res) => {
+    console.log('Received POST request to /api/principal/create');
     try {
-        // ... implementation for principal creation ...
-        res.json({ success: true });
+        const { name, email, password, role, phone, school_id } = req.body;
+        
+        // 1. Create Auth Account
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: { name, role: role || 'principal', school_id }
+        });
+        if (authError) throw authError;
+
+        // 2. Create Profile Record
+        const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+            id: authData.user.id,
+            user_id: authData.user.id,
+            name,
+            email,
+            phone: phone || null,
+            role: role || 'principal',
+            school_id,
+            password,
+            must_change_password: true
+        });
+        if (profileError) throw profileError;
+
+        res.json({ success: true, user: authData.user });
     } catch (e: any) {
+        console.error('Server Create Principal Error:', e);
         res.status(500).json({ error: e.message || 'Internal server error' });
     }
   });
