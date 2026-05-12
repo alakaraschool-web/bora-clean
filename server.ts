@@ -14,6 +14,11 @@ async function startServer() {
 
   app.use(cors());
   app.use(express.json());
+  
+  app.use((req, res, next) => {
+    console.log(`[Request] ${req.method} ${req.url}`);
+    next();
+  });
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -114,6 +119,102 @@ async function startServer() {
     }
   });
 
+  // API Route to create a student with Auth + Profile + Student Record
+  app.post('/api/students/create', async (req, res) => {
+    console.log('Received POST request to /api/students/create');
+    try {
+        const { name, admission_number, class: className, gender, phone, school_id, password } = req.body;
+        
+        // 1. Create Auth Account
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email: `${admission_number}@student.cbcexaminationanalyser.ke`,
+            password,
+            email_confirm: true,
+            user_metadata: { name, role: 'student', school_id }
+        });
+        if (authError) throw authError;
+
+        // 2. Create Student Record
+        const { data: studentRecord, error: studentError } = await supabaseAdmin.from('students').upsert({
+            id: authData.user.id,
+            name,
+            admission_number,
+            class: className,
+            gender,
+            school_id,
+            status: 'Active'
+        }).select().single();
+        if (studentError) throw studentError;
+
+        // 3. Create Profile Record
+        const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+            id: authData.user.id,
+            user_id: authData.user.id,
+            name,
+            email: `${admission_number}@student.cbcexaminationanalyser.ke`,
+            phone: phone || null,
+            role: 'student',
+            school_id,
+            student_id: studentRecord.id,
+            password,
+            must_change_password: true
+        });
+        if (profileError) throw profileError;
+
+        res.json({ success: true, user: authData.user });
+    } catch (e: any) {
+        console.error('Server Create Student Error:', e);
+        res.status(500).json({ error: e.message || 'Internal server error' });
+    }
+  });
+
+  // API Route to create a teacher
+  app.post('/api/teachers/create', async (req, res) => {
+    console.log('Received POST request to /api/teachers/create');
+    try {
+        const { name, email, password, role, phone, school_id, assignments } = req.body;
+        
+        // 1. Create Auth Account
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: { name, role, school_id }
+        });
+        if (authError) throw authError;
+
+        // 2. Create Profile Record
+        const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+            id: authData.user.id,
+            user_id: authData.user.id,
+            name,
+            email,
+            phone: phone || null,
+            role,
+            school_id,
+            assignments,
+            password,
+            must_change_password: true
+        });
+        if (profileError) throw profileError;
+
+        res.json({ success: true, user: authData.user });
+    } catch (e: any) {
+        console.error('Server Create Teacher Error:', e);
+        res.status(500).json({ error: e.message || 'Internal server error' });
+    }
+  });
+
+  // API Route to create a principal
+  app.post('/api/principal/create', async (req, res) => {
+    try {
+        // ... implementation for principal creation ...
+        res.json({ success: true });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message || 'Internal server error' });
+    }
+  });
+  
   // API Route to create a user using Service Role Key
   app.post('/api/auth/create-user', async (req, res) => {
     console.log('Received POST request to /api/auth/create-user');

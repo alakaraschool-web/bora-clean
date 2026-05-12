@@ -1150,6 +1150,10 @@ export const PrincipalDashboard = () => {
 
         const authResult = await response.json();
 
+        if (!authResult || !authResult.user) {
+          throw new Error('Invalid response from server: Missing user data');
+        }
+
         const authUserId = authResult.user.id;
 
         // 2. Update Profile with assignments
@@ -1300,6 +1304,9 @@ export const PrincipalDashboard = () => {
 
         const authResult = await response.json();
 
+        if (!authResult || !authResult.user) {
+          throw new Error('Invalid response from server: Missing user data');
+        }
 
         const authUserId = authResult.user.id;
 
