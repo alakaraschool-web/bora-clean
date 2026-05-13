@@ -124,7 +124,7 @@ export const SchoolRegistration = () => {
           role: 'principal',
           school_id: schoolData.id,
           password: formData.password
-        });
+        }, { onConflict: 'id' });
 
       if (profileError) {
         console.error('Profile Creation Error:', profileError);

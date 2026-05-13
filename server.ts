@@ -26,11 +26,20 @@ async function startServer() {
     next();
   });
 
+  console.log(`[API] NODE_ENV is: ${process.env.NODE_ENV}`);
+  
   // API Routes
+  app.all('/api/*', (req, res, next) => {
+    console.log(`[API] Path hit: ${req.method} ${req.url}`);
+    next();
+  });
+
   app.post('/api/auth/create-user', async (req, res) => {
+    console.log('[API] /api/auth/create-user called');
     const { email, password, role, name, phone, school_id } = req.body;
     
     try {
+      console.log('[API] Processing user creation for:', email);
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
@@ -41,6 +50,7 @@ async function startServer() {
       if (error) throw error;
       res.json({ user: data.user });
     } catch (e: any) {
+      console.error('[API] Error in /api/auth/create-user:', e.message);
       res.status(500).json({ error: e.message });
     }
   });
