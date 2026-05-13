@@ -115,7 +115,7 @@ export const SchoolRegistration = () => {
       // 3. Create Profile in Supabase
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert({
+        .upsert({
           id: authData.user.id,
           user_id: authData.user.id,
           name: formData.principalName,
