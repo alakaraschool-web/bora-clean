@@ -49,13 +49,23 @@ async function startServer() {
     const { students, school_id } = req.body;
     
     try {
+      const { data: school, error: schoolError } = await supabaseAdmin
+        .from('schools')
+        .select('name')
+        .eq('id', school_id)
+        .single();
+
+      if (schoolError || !school) throw new Error('School not found');
+
+      const schoolNameHandle = school.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
       const results = { success: [] as any[], failed: [] as any[] };
       
       for (const student of students) {
          try {
            const studentPhone = `+254${student.admission_number.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
-           const emailHandle = student.admission_number.toLowerCase().replace(/[^a-z0-9]/g, '');
-           const dummyEmail = `student_${emailHandle}@cbcexam.ke`;
+           const studentNameHandle = student.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+           const dummyEmail = `${studentNameHandle}_${student.admission_number.toLowerCase()}@${schoolNameHandle}.ac.ke`;
            const password = 'password123';
            
            const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
