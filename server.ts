@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 // Initialize Supabase Admin client
 const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_URL || '',
+  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
@@ -40,6 +40,11 @@ async function startServer() {
     
     try {
       console.log('[API] Processing user creation for:', email);
+      
+      if (!supabaseAdmin) {
+        throw new Error('Supabase admin not initialized');
+      }
+
       const { data, error } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
@@ -47,7 +52,12 @@ async function startServer() {
         user_metadata: { role, name, phone, school_id }
       });
 
-      if (error) throw error;
+      console.log('[API] Create user response data:', data ? 'Success' : 'No data');
+      if (error) {
+        console.error('[API] Supabase Admin create user error:', error);
+        throw error;
+      }
+      
       res.json({ user: data.user });
     } catch (e: any) {
       console.error('[API] Error in /api/auth/create-user:', e.message);
