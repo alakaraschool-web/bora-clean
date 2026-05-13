@@ -54,7 +54,8 @@ async function startServer() {
       for (const student of students) {
          try {
            const studentPhone = `+254${student.admission_number.toLowerCase().replace(/[^0-9]/g, '').padStart(9, '0').slice(-9)}`;
-           const dummyEmail = `${studentPhone.replace('+', '')}@student.cbcexaminationanalyser.ke`;
+           const emailHandle = student.admission_number.toLowerCase().replace(/[^a-z0-9]/g, '');
+           const dummyEmail = `student_${emailHandle}@cbcexam.ke`;
            const password = 'password123';
            
            const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
