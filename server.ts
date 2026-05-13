@@ -77,7 +77,7 @@ async function startServer() {
            
            if(authError) throw authError;
 
-           const { data: studentRecord, error: studentError } = await supabaseAdmin.from('students').insert({
+           const { data: studentRecord, error: studentError } = await supabaseAdmin.from('students').upsert({
              id: authData.user.id,
              name: student.name,
              admission_number: student.admission_number,
@@ -96,9 +96,14 @@ async function startServer() {
            
            if(studentError) throw studentError;
            
-           await supabaseAdmin.from('profiles').update({
-             student_id: studentRecord.id
-           }).eq('id', authData.user.id);
+           await supabaseAdmin.from('profiles').upsert({
+             id: authData.user.id,
+             student_id: studentRecord.id,
+             role: 'student',
+             name: student.name,
+             school_id: school_id,
+             phone: studentPhone
+           });
            
            results.success.push(studentRecord);
          } catch (e: any) {
